@@ -1417,8 +1417,8 @@
       if (typeof p.createdAt !== 'number') p.createdAt = Date.now();
       if (typeof p.hasMP !== 'boolean') p.hasMP = false;
       if (typeof p.completed !== 'boolean') p.completed = false;
-      if (typeof p.color !== 'string') p.color = 'Faerie';
-      if (typeof p.species !== 'string') p.species = 'Draik';
+      if (typeof p.color !== 'string') p.color = 'Unknown';
+      if (typeof p.species !== 'string') p.species = 'Species';
       if (typeof p.stagingStatus !== 'string') p.stagingStatus = 'active'; // 'active' | 'roster' — sticks to the pet even across account changes
       if (typeof p.selectedRenderIndex !== 'number') p.selectedRenderIndex = 0; // which image variant Preview shows for this name — survives active/roster moves
       return p;
@@ -1661,6 +1661,14 @@
     stagedImages.unshift(img);
     saveImages();
     renderDeck();
+    // if the Add/Edit Pet modal is open, a freshly pasted/dropped image is
+    // meant for that pet: select it into the render preview box immediately
+    // instead of leaving the user to go pick it from the deck manually
+    if (petModal && !petModal.classList.contains('hidden')) {
+      pendingImageSrc = src;
+      updateModalStage();
+      renderModalDeckPicker();
+    }
   }
 
   // paste zone still supports click-focus + drag/drop files, but the actual
@@ -2689,15 +2697,15 @@
   function renderDetailHeader() {
     const activePet = currentDetailPet || getFallbackPet();
     const petName = (activePet && activePet.name) || 'Your Pet';
-    const petColor = (activePet && activePet.color && String(activePet.color).trim()) || 'Faerie';
-    const petSpecies = (activePet && activePet.species && String(activePet.species).trim()) || 'Draik';
+    const petColor = (activePet && activePet.color && String(activePet.color).trim()) || 'Unknown';
+    const petSpecies = (activePet && activePet.species && String(activePet.species).trim()) || 'Species';
     detailPetNameText.textContent = petName;
     detailPetColor.textContent = petColor;
     detailPetSpecies.textContent = petSpecies;
   }
   function savePetColorOrSpecies(field, rawValue) {
     if (!currentDetailPetName) return;
-    const fallback = field === 'color' ? 'Faerie' : 'Draik';
+    const fallback = field === 'color' ? 'Unknown' : 'Species';
     const trimmed = (rawValue || '').trim() || fallback;
     pets.forEach(p => { if (p.name === currentDetailPetName) p[field] = trimmed; });
     savePets();
@@ -2707,11 +2715,11 @@
     showSaveToast();
   }
   enableInlineEdit(detailPetColor, {
-    getValue: () => (currentDetailPet && currentDetailPet.color) || 'Faerie',
+    getValue: () => (currentDetailPet && currentDetailPet.color) || 'Unknown',
     onSave: (val) => savePetColorOrSpecies('color', val)
   });
   enableInlineEdit(detailPetSpecies, {
-    getValue: () => (currentDetailPet && currentDetailPet.species) || 'Draik',
+    getValue: () => (currentDetailPet && currentDetailPet.species) || 'Species',
     onSave: (val) => savePetColorOrSpecies('species', val)
   });
 
@@ -3717,7 +3725,7 @@
   // Editor, a stale reference, or a state-handoff race on a freshly downloaded
   // copy of this file) so every field access below always has something to read
   function getFallbackPet() {
-    return { id: null, name: safeDetailName(), color: 'Faerie', species: 'Draik', account: '', createdAt: Date.now(), hasMP: false, completed: false };
+    return { id: null, name: safeDetailName(), color: 'Unknown', species: 'Species', account: '', createdAt: Date.now(), hasMP: false, completed: false };
   }
   // races a promise against a timeout so a stuck/never-resolving IndexedDB
   // request (e.g. on some file:// origins) can never leave the UI stuck
