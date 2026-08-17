@@ -1051,6 +1051,19 @@
   // both ways between the DB's snake_case columns and the app's internal
   // camelCase pet objects.
   function petToSupabaseRow(p) {
+    // A pet's imageSrc can still be a raw base64 data: URL if the original
+    // upload attempt in stageFile() never reached Supabase Storage (offline,
+    // bucket/RLS misconfigured, CORS, etc.). Shipping that string as-is in
+    // the row payload is exactly what was tripping Supabase/PostgREST's
+    // request size limit and surfacing as a generic pet-save failure —
+    // small edits with no image always worked, anything with an embedded
+    // image didn't. Never send it; leave image_url null instead so the sync
+    // succeeds, and the pet keeps displaying its local copy until a real
+    // upload (see syncPetImageAndUpsert) produces a proper CDN URL.
+    const isEmbeddedImage = typeof p.imageSrc === 'string' && p.imageSrc.startsWith('data:');
+    if (isEmbeddedImage) {
+      console.error(`Supabase pet save: "${p.name}" (${p.id}) still has a local base64 image that was never uploaded to Supabase Storage — sending image_url as null instead of the raw data URL to avoid a payload-too-large failure.`);
+    }
     return {
       id: p.id,
       name: p.name || '',
@@ -1059,7 +1072,7 @@
       notes: p.notes || '',
       has_mp: !!p.hasMP,
       is_completed: !!p.completed,
-      image_url: p.imageSrc || null,
+      image_url: isEmbeddedImage ? null : (p.imageSrc || null),
       updated_at: new Date().toISOString()
     };
   }
@@ -1106,6 +1119,34 @@
       return { error: e };
     }
   }
+  // Used right after a single pet is saved locally (see modalSaveBtn). If
+  // that pet's image never made it further than the local base64 fallback,
+  // this gives it one more chance to land in Supabase Storage — where it
+  // belongs — before syncing the row, so the database keeps storing real
+  // CDN URLs instead of multi-MB data: URLs. Local state (the pet object,
+  // the matching image-deck entry, localStorage, the grid) is updated in
+  // place if the retry succeeds; if it doesn't, petToSupabaseRow() already
+  // guards against ever shipping the raw base64 to the database, so the
+  // sync still succeeds — just without an image_url — instead of failing.
+  async function syncPetImageAndUpsert(pet) {
+    const originalSrc = pet.imageSrc;
+    if (typeof originalSrc === 'string' && originalSrc.startsWith('data:')) {
+      try {
+        const file = dataUrlToFile(originalSrc, `${pet.id}.png`);
+        const publicUrl = await sbUploadAsset(file, 'staged-images');
+        if (publicUrl) {
+          pet.imageSrc = publicUrl;
+          const stagedMatch = stagedImages.find(i => i.src === originalSrc);
+          if (stagedMatch) { stagedMatch.src = publicUrl; saveImages(); renderDeck(); }
+          savePets();
+          renderGrid();
+        }
+      } catch (e) {
+        console.error('Supabase storage upload retry failed — this pet will keep its image local-only for now:', e);
+      }
+    }
+    return sbUpsertPets([pet]);
+  }
   async function sbDeletePetById(id) {
     if (!supabase || !supabaseAvailable || !id) return;
     try {
@@ -1151,7 +1192,22 @@
       if (uploadError) throw uploadError;
       const { data } = supabase.storage.from('pet-assets').getPublicUrl(path);
       return (data && data.publicUrl) || null;
-    } catch (e) { console.warn('Supabase: asset upload failed, falling back to a local copy.', e); return null; }
+    } catch (e) { console.error('Supabase storage upload failed, falling back to a local copy:', e); return null; }
+  }
+
+  // Converts a base64 data: URL back into a File so an image that only
+  // ever made it to the local base64 fallback can be retried against
+  // Supabase Storage later (see syncPetImageAndUpsert).
+  function dataUrlToFile(dataUrl, filename) {
+    const commaIdx = dataUrl.indexOf(',');
+    const header = dataUrl.slice(0, commaIdx);
+    const base64 = dataUrl.slice(commaIdx + 1);
+    const mimeMatch = /data:([^;]+);base64/.exec(header);
+    const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new File([bytes], filename, { type: mime });
   }
 
   // ---- lightweight local mirror of each pet's cloud media URLs ----
@@ -1248,11 +1304,30 @@
     // fall back to the older single/multi-image storage key if present, so upgrades don't lose data
     return loadJSON('neo_tracker_pets_v1', []);
   }
+  // Wraps localStorage.setItem so a quota overflow (very common once a large
+  // base64 image is involved — see the fallback in stageFile()) never turns
+  // into an uncaught exception that silently aborts whatever called it. That
+  // used to abort addStagedImage() before it could render the new deck
+  // thumbnail or preview the image in the Add/Edit Pet modal (looking like
+  // "paste/drag doesn't work"), and abort the pet-save handler before it
+  // could close the modal or re-render the grid (showing a generic
+  // "Something went wrong" error). Callers get back whether it worked so
+  // they can react (e.g. keep a pet flagged dirty) without needing their own
+  // try/catch.
+  function safeLocalStorageSet(key, value) {
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch (err) {
+      console.error(`localStorage.setItem("${key}") failed — likely storage quota exceeded by a large embedded image:`, err);
+      return false;
+    }
+  }
   function savePets() {
-    localStorage.setItem(STORAGE_PETS, JSON.stringify(pets));
+    safeLocalStorageSet(STORAGE_PETS, JSON.stringify(pets));
     sbSyncPetsDebounced();
   }
-  function saveImages() { localStorage.setItem(STORAGE_IMAGES, JSON.stringify(stagedImages)); }
+  function saveImages() { safeLocalStorageSet(STORAGE_IMAGES, JSON.stringify(stagedImages)); }
   function saveTags() {
     localStorage.setItem(STORAGE_ACCOUNTS, JSON.stringify(ACCOUNTS));
     localStorage.setItem(STORAGE_STATUSES, JSON.stringify(STATUSES));
@@ -1751,10 +1826,21 @@
     }
   });
 
+  // `draggedDeckImgId` backs up whatever's in dataTransfer: some browsers
+  // (notably WebKit/Safari) are inconsistent about preserving a custom
+  // text/plain payload across a drag that originates on an <img> element,
+  // especially once the src is a cross-origin CDN URL rather than a local
+  // data: URL — the drop handler falls back to this if getData comes back
+  // empty instead of silently doing nothing.
+  let draggedDeckImgId = null;
   deckGrid.addEventListener('dragstart', (e) => {
     const thumb = e.target.closest('.deck-thumb');
-    if (thumb) e.dataTransfer.setData('text/plain', thumb.dataset.imgId);
+    if (!thumb) return;
+    draggedDeckImgId = thumb.dataset.imgId;
+    e.dataTransfer.effectAllowed = 'copy';
+    try { e.dataTransfer.setData('text/plain', thumb.dataset.imgId); } catch (err) { console.error('Drag start: setData failed', err); }
   });
+  deckGrid.addEventListener('dragend', () => { draggedDeckImgId = null; });
 
   function deleteImage(id) {
     if (!isUnlocked) return;
@@ -1795,16 +1881,29 @@
     return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
   }
 
-  // global clipboard paste — works anywhere on the main screen, not just when the zone is focused
+  // global clipboard paste — works anywhere on the main screen, not just when
+  // the zone is focused. Registered on the capture phase (not bubble) so it
+  // sees the paste before any other listener on a descendant element could
+  // stop it from propagating.
   document.addEventListener('paste', (e) => {
     // the Image Deck only exists in the Editor/Tracker view — while inside the
     // Lookup view (petpet image, rich-text description, etc.) this listener
     // must stay completely out of the way so those pastes never leak in here
     if (currentView === 'detail') return;
-    const items = (e.clipboardData || window.clipboardData) ? (e.clipboardData || window.clipboardData).items : null;
-    if (!items) return;
-    const imageItem = Array.from(items).find(item => item.type && item.type.startsWith('image/'));
-    if (!imageItem) return; // no image on the clipboard — always let normal text pasting continue
+    const clipboard = e.clipboardData || window.clipboardData;
+    if (!clipboard) return;
+    // Prefer clipboardData.items (gives access to .getAsFile()), but some
+    // browsers/paste sources populate .files without a matching image entry
+    // in .items — fall back to that so a real image paste is never missed.
+    let file = null;
+    if (clipboard.items) {
+      const imageItem = Array.from(clipboard.items).find(item => item.type && item.type.startsWith('image/'));
+      if (imageItem) file = imageItem.getAsFile();
+    }
+    if (!file && clipboard.files && clipboard.files.length) {
+      file = Array.from(clipboard.files).find(f => f.type && f.type.startsWith('image/')) || null;
+    }
+    if (!file) return; // no image on the clipboard — always let normal text pasting continue
     const modalOpen = petModal && !petModal.classList.contains('hidden');
     // Inside the Add/Edit Pet modal, an image paste always wins — even while
     // the PET NAME input, notes textarea, or a dropdown is focused — so it
@@ -1813,10 +1912,9 @@
     // still gets priority for normal text pasting.
     if (!modalOpen && isEditableTarget(document.activeElement)) return;
     e.preventDefault();
-    const blob = imageItem.getAsFile();
-    stageFile(blob);
+    stageFile(file).catch(err => console.error('Failed to stage pasted image:', err));
     flashPasteZone(true);
-  });
+  }, true);
 
   function flashPasteZone(success) {
     pasteZone.classList.remove('border-[#D6EEE6]');
@@ -1847,6 +1945,7 @@
     if (publicUrl) { addStagedImage(publicUrl); return; }
     const reader = new FileReader();
     reader.onload = (ev) => addStagedImage(ev.target.result);
+    reader.onerror = () => console.error('Failed to read pasted/dropped image as a data URL:', reader.error);
     reader.readAsDataURL(file);
   }
   function handleFiles(fileList) {
@@ -1963,9 +2062,17 @@
     if (card) openModal(card.dataset.petId);
   });
 
+  petGrid.addEventListener('dragenter', (e) => {
+    const drop = e.target.closest('.pet-img-stage');
+    if (drop) e.preventDefault(); // required alongside dragover in some browsers for drop to actually fire
+  });
   petGrid.addEventListener('dragover', (e) => {
     const drop = e.target.closest('.pet-img-stage');
-    if (drop) { e.preventDefault(); drop.classList.add('drop-target-active'); }
+    if (drop) {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      drop.classList.add('drop-target-active');
+    }
   });
   petGrid.addEventListener('dragleave', (e) => {
     const drop = e.target.closest('.pet-img-stage');
@@ -1976,14 +2083,20 @@
     if (!drop) return;
     e.preventDefault();
     drop.classList.remove('drop-target-active');
-    const imgId = e.dataTransfer.getData('text/plain');
+    const imgId = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || draggedDeckImgId;
+    draggedDeckImgId = null;
+    if (!imgId) { console.error('Pet card drop: no dragged image id available (dataTransfer was empty and no fallback id was captured).'); return; }
     const img = stagedImages.find(i => i.id === imgId);
     const pet = pets.find(p => p.id === drop.dataset.petId);
-    if (img && pet) {
-      pet.imageSrc = img.src; // single-image model: replaces whatever was assigned
-      savePets();
-      renderGrid();
-    }
+    if (!img || !pet) { console.error('Pet card drop: could not resolve the dragged image or the target pet.', { imgId, petId: drop.dataset.petId }); return; }
+    pet.imageSrc = img.src; // single-image model: replaces whatever was assigned
+    dirtyPetIds.add(pet.id);
+    savePets();
+    renderGrid();
+    syncPetImageAndUpsert(pet).then(({ error }) => {
+      if (error) console.error('Supabase pet save error (image drag-and-drop):', error);
+      else dirtyPetIds.delete(pet.id);
+    });
   });
 
   // ---------- card "..." menu ----------
@@ -2208,7 +2321,7 @@
     // RLS rejection, offline, etc.) surface as a blocking error or reopen
     // the modal — it's logged for debugging and left flagged dirty so it
     // keeps being retried/protected until a sync actually succeeds.
-    sbUpsertPets([savedPet]).then(({ error }) => {
+    syncPetImageAndUpsert(savedPet).then(({ error }) => {
       if (error) {
         console.error('Supabase pet save error:', error);
       } else {
