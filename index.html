@@ -1175,6 +1175,13 @@
   let sortMode = 'newest';
   let editingId = null;
   let pendingImageSrc = null;
+  // Ids of pets created/edited locally since page load that haven't been
+  // confirmed synced to Supabase yet. bootstrapFromSupabase() fires once at
+  // startup and can resolve *after* the user has already added/edited a pet
+  // (e.g. clicked "Save changes" right after the page loaded); without this,
+  // that late-resolving fetch would silently overwrite `pets` with the
+  // stale remote list and the new pet would vanish right after appearing.
+  let dirtyPetIds = new Set();
   let lastDeleted = null;
   let undoTimer = null;
   let accountsExpanded = false;
@@ -2102,33 +2109,58 @@
     modalNameInput.classList.remove('border-rose-400');
 
     const wasEditing = !!editingId;
+    let savedPet;
 
-    if (editingId) {
-      const pet = pets.find(p => p.id === editingId);
-      pet.name = name;
-      pet.account = modalAccountSelect.value || null;
-      pet.status = modalStatusSelect.value || null;
-      pet.notes = modalNotesInput.value.trim();
-      pet.hasMP = modalMPCheckbox.checked;
-      pet.completed = modalCompletedCheckbox.checked;
-      pet.imageSrc = pendingImageSrc || null;
-    } else {
-      pets.unshift({
-        id: genId(),
-        name,
-        account: modalAccountSelect.value || null,
-        status: modalStatusSelect.value || null,
-        notes: modalNotesInput.value.trim(),
-        hasMP: modalMPCheckbox.checked,
-        completed: modalCompletedCheckbox.checked,
-        imageSrc: pendingImageSrc || null,
-        createdAt: Date.now()
-      });
+    try {
+      if (editingId) {
+        const pet = pets.find(p => p.id === editingId);
+        if (!pet) {
+          // the pet being edited no longer exists locally (e.g. deleted in
+          // another tab) — nothing to save, just back out cleanly instead of
+          // throwing on the next line
+          closeModal();
+          return;
+        }
+        pet.name = name;
+        pet.account = modalAccountSelect.value || null;
+        pet.status = modalStatusSelect.value || null;
+        pet.notes = modalNotesInput.value.trim();
+        pet.hasMP = modalMPCheckbox.checked;
+        pet.completed = modalCompletedCheckbox.checked;
+        pet.imageSrc = pendingImageSrc || null;
+        savedPet = pet;
+      } else {
+        savedPet = {
+          id: genId(),
+          name,
+          account: modalAccountSelect.value || null,
+          status: modalStatusSelect.value || null,
+          notes: modalNotesInput.value.trim(),
+          hasMP: modalMPCheckbox.checked,
+          completed: modalCompletedCheckbox.checked,
+          imageSrc: pendingImageSrc || null,
+          createdAt: Date.now()
+        };
+        pets.unshift(savedPet);
+      }
+
+      // mark this pet as locally dirty until it's confirmed synced, so a
+      // late-resolving startup fetch from Supabase can't clobber it
+      dirtyPetIds.add(savedPet.id);
+
+      savePets(); // local cache + debounced batch sync
+      // also push this specific pet immediately (not debounced) so a fast
+      // refresh right after saving can't lose it before the 400ms batch
+      // sync would have fired
+      sbUpsertPets([savedPet]).then(() => { dirtyPetIds.delete(savedPet.id); });
+
+      renderGrid();
+      closeModal();
+      showSaveToast();
+    } catch (err) {
+      console.error('Failed to save pet:', err);
+      showToast('Something went wrong saving that pet — please try again.');
     }
-    savePets();
-    renderGrid();
-    closeModal();
-    if (wasEditing) showSaveToast();
   });
 
   modalDeleteBtn.addEventListener('click', () => {
@@ -4544,9 +4576,22 @@
 
     if (remotePets) {
       if (remotePets.length > 0) {
-        pets = migratePets(remotePets);
+        // Reconcile rather than overwrite. This fetch started at page load
+        // and can resolve well after the user has already added or edited a
+        // pet (see modalSaveBtn's click handler) — a plain `pets = remotePets`
+        // here would silently discard that change the instant this promise
+        // resolves, which is exactly the "Save changes does nothing" bug:
+        // the pet would flash into the grid and then disappear. Any pet that
+        // doesn't exist in the remote list yet, or that's still marked dirty
+        // (saved locally but not yet confirmed synced), is kept and pushed
+        // back up to the cloud; everything else defers to the remote copy.
+        const remoteById = new Map(remotePets.map(p => [p.id, p]));
+        const localKeep = pets.filter(p => !remoteById.has(p.id) || dirtyPetIds.has(p.id));
+        const remoteKeep = remotePets.filter(p => !localKeep.some(lp => lp.id === p.id));
+        pets = migratePets([...localKeep, ...remoteKeep]);
         localStorage.setItem(STORAGE_PETS, JSON.stringify(pets));
         changed = true;
+        if (localKeep.length) sbUpsertPets(localKeep); // make sure anything created/edited locally during this fetch actually reaches the cloud
       } else if (pets.length > 0) {
         sbUpsertPets(pets); // seed the cloud from whatever's already here locally
       }
