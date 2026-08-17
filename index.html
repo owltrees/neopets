@@ -1053,13 +1053,12 @@
   function petToSupabaseRow(p) {
     // A pet's imageSrc can still be a raw base64 data: URL if the original
     // upload attempt in stageFile() never reached Supabase Storage (offline,
-    // bucket/RLS misconfigured, CORS, etc.). Shipping that string as-is in
-    // the row payload is exactly what was tripping Supabase/PostgREST's
-    // request size limit and surfacing as a generic pet-save failure —
-    // small edits with no image always worked, anything with an embedded
-    // image didn't. Never send it; leave image_url null instead so the sync
-    // succeeds, and the pet keeps displaying its local copy until a real
-    // upload (see syncPetImageAndUpsert) produces a proper CDN URL.
+    // bucket/RLS misconfigured, CORS, etc.), and somehow still made it here
+    // instead of being caught by modalSaveBtn/the pet-card drop handler
+    // (both now strictly await resolveImageForStorage() before ever calling
+    // savePets()/sbUpsertPets). This is a last-resort safety net: never
+    // ship a raw base64 string in the row payload — that's exactly what was
+    // tripping Supabase/PostgREST's request size limit before.
     const isEmbeddedImage = typeof p.imageSrc === 'string' && p.imageSrc.startsWith('data:');
     if (isEmbeddedImage) {
       console.error(`Supabase pet save: "${p.name}" (${p.id}) still has a local base64 image that was never uploaded to Supabase Storage — sending image_url as null instead of the raw data URL to avoid a payload-too-large failure.`);
@@ -1119,33 +1118,26 @@
       return { error: e };
     }
   }
-  // Used right after a single pet is saved locally (see modalSaveBtn). If
-  // that pet's image never made it further than the local base64 fallback,
-  // this gives it one more chance to land in Supabase Storage — where it
-  // belongs — before syncing the row, so the database keeps storing real
-  // CDN URLs instead of multi-MB data: URLs. Local state (the pet object,
-  // the matching image-deck entry, localStorage, the grid) is updated in
-  // place if the retry succeeds; if it doesn't, petToSupabaseRow() already
-  // guards against ever shipping the raw base64 to the database, so the
-  // sync still succeeds — just without an image_url — instead of failing.
-  async function syncPetImageAndUpsert(pet) {
-    const originalSrc = pet.imageSrc;
-    if (typeof originalSrc === 'string' && originalSrc.startsWith('data:')) {
-      try {
-        const file = dataUrlToFile(originalSrc, `${pet.id}.png`);
-        const publicUrl = await sbUploadAsset(file, 'staged-images');
-        if (publicUrl) {
-          pet.imageSrc = publicUrl;
-          const stagedMatch = stagedImages.find(i => i.src === originalSrc);
-          if (stagedMatch) { stagedMatch.src = publicUrl; saveImages(); renderDeck(); }
-          savePets();
-          renderGrid();
-        }
-      } catch (e) {
-        console.error('Supabase storage upload retry failed — this pet will keep its image local-only for now:', e);
-      }
+  // Resolves whatever image src is about to be attached to a pet into
+  // something safe to persist. If it's already a real URL (a prior
+  // successful upload, or an external URL), it's returned as-is with no
+  // network call. If it's still a local base64 fallback, this uploads it to
+  // Supabase Storage right now and waits for the real public URL — this is
+  // the strict "upload before save" step: callers must await this and must
+  // NOT fall back to writing the raw data: URL (or silently writing null)
+  // if it fails; they should surface the failure and let the user retry.
+  async function resolveImageForStorage(rawSrc) {
+    if (!rawSrc) return { url: null, error: null };
+    if (!rawSrc.startsWith('data:')) return { url: rawSrc, error: null }; // already a real/uploaded URL
+    try {
+      const file = dataUrlToFile(rawSrc, `${genId()}.png`);
+      const publicUrl = await sbUploadAsset(file, 'staged-images');
+      if (publicUrl) return { url: publicUrl, error: null };
+      return { url: null, error: new Error('Supabase storage upload did not return a public URL') };
+    } catch (e) {
+      console.error('Supabase Storage Upload Error:', e);
+      return { url: null, error: e };
     }
-    return sbUpsertPets([pet]);
   }
   async function sbDeletePetById(id) {
     if (!supabase || !supabaseAvailable || !id) return;
@@ -1182,7 +1174,8 @@
   async function sbUploadAsset(file, folder) {
     if (!supabase || !supabaseAvailable || !file) return null;
     try {
-      const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop() : (file.type.split('/')[1] || 'bin');
+      const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop() : ((file.type && file.type.split('/')[1]) || 'bin');
+      // unique per-upload filename so simultaneous/rapid uploads never collide
       const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('pet-assets').upload(path, file, {
         cacheControl: '3600',
@@ -1192,12 +1185,12 @@
       if (uploadError) throw uploadError;
       const { data } = supabase.storage.from('pet-assets').getPublicUrl(path);
       return (data && data.publicUrl) || null;
-    } catch (e) { console.error('Supabase storage upload failed, falling back to a local copy:', e); return null; }
+    } catch (e) { console.error('Supabase Storage Upload Error:', e); return null; }
   }
 
   // Converts a base64 data: URL back into a File so an image that only
-  // ever made it to the local base64 fallback can be retried against
-  // Supabase Storage later (see syncPetImageAndUpsert).
+  // ever made it to the local base64 fallback can be uploaded to Supabase
+  // Storage on demand (see resolveImageForStorage).
   function dataUrlToFile(dataUrl, filename) {
     const commaIdx = dataUrl.indexOf(',');
     const header = dataUrl.slice(0, commaIdx);
@@ -2078,7 +2071,7 @@
     const drop = e.target.closest('.pet-img-stage');
     if (drop) drop.classList.remove('drop-target-active');
   });
-  petGrid.addEventListener('drop', (e) => {
+  petGrid.addEventListener('drop', async (e) => {
     const drop = e.target.closest('.pet-img-stage');
     if (!drop) return;
     e.preventDefault();
@@ -2089,11 +2082,30 @@
     const img = stagedImages.find(i => i.id === imgId);
     const pet = pets.find(p => p.id === drop.dataset.petId);
     if (!img || !pet) { console.error('Pet card drop: could not resolve the dragged image or the target pet.', { imgId, petId: drop.dataset.petId }); return; }
-    pet.imageSrc = img.src; // single-image model: replaces whatever was assigned
+
+    // If this deck item is already a real Supabase Storage URL, this
+    // resolves instantly with no network call. If it's still a local base64
+    // fallback, upload it now and wait for the public URL — a dropped
+    // image is never assigned to the pet (locally or remotely) as a raw
+    // data: URL, since that's exactly what was reverting on refresh before:
+    // the card looked updated but the database never got a usable
+    // image_url to persist.
+    drop.classList.add('opacity-60');
+    const { url, error } = await resolveImageForStorage(img.src);
+    drop.classList.remove('opacity-60');
+
+    if (error || !url) {
+      console.error('Supabase Storage Upload Error:', error);
+      showToast("Couldn't save that image to this pet — check your connection and try again.");
+      return; // nothing is assigned or persisted
+    }
+    if (url !== img.src) { img.src = url; saveImages(); renderDeck(); } // keep the deck thumbnail in sync with the now-uploaded URL too
+
+    pet.imageSrc = url; // single-image model: replaces whatever was assigned
     dirtyPetIds.add(pet.id);
     savePets();
     renderGrid();
-    syncPetImageAndUpsert(pet).then(({ error }) => {
+    sbUpsertPets([pet]).then(({ error }) => {
       if (error) console.error('Supabase pet save error (image drag-and-drop):', error);
       else dirtyPetIds.delete(pet.id);
     });
@@ -2162,6 +2174,20 @@
   const modalDeckPicker = document.getElementById('modalDeckPicker');
   const modalDeleteBtn = document.getElementById('modalDeleteBtn');
   const modalRemoveImageBtn = document.getElementById('modalRemoveImageBtn');
+  const modalSaveBtn = document.getElementById('modalSaveBtn');
+  const modalSaveBtnDefaultLabel = modalSaveBtn.textContent;
+  const modalCancelBtnEl = document.getElementById('modalCancelBtn');
+  let isModalSaving = false;
+  function setModalSaveBtnLoading(loading) {
+    isModalSaving = loading;
+    modalSaveBtn.disabled = loading;
+    modalSaveBtn.classList.toggle('opacity-60', loading);
+    modalSaveBtn.classList.toggle('cursor-not-allowed', loading);
+    modalSaveBtn.textContent = loading ? 'Uploading image…' : modalSaveBtnDefaultLabel;
+    // block Cancel too — closing mid-upload would abandon an in-flight
+    // Storage write with nothing to show for it either way
+    if (modalCancelBtnEl) modalCancelBtnEl.disabled = loading;
+  }
 
   function renderModalDeckPicker() {
     modalDeckPicker.innerHTML = stagedImages.map(img => `
@@ -2237,6 +2263,7 @@
   }
 
   function closeModal() {
+    if (isModalSaving) return; // an image upload is in flight — see modalSaveBtn's handler
     hideModalEl(petModal);
     editingId = null;
     pendingImageSrc = null;
@@ -2253,18 +2280,46 @@
     }
   });
 
-  document.getElementById('modalSaveBtn').addEventListener('click', () => {
+  modalSaveBtn.addEventListener('click', async () => {
     const name = modalNameInput.value.trim();
     if (!name) { modalNameInput.focus(); modalNameInput.classList.add('border-rose-400'); return; }
     modalNameInput.classList.remove('border-rose-400');
 
+    // ---- 0. Resolve the image FIRST, strictly, before anything gets
+    // written anywhere. If it's still a local base64 fallback (the deck's
+    // own upload attempt didn't reach Supabase Storage), upload it now and
+    // wait for the real public URL. A pet is never saved — locally or
+    // remotely — carrying a raw data: URL as its "final" image: that's what
+    // was letting a pet with an image look saved in the moment but vanish
+    // on refresh, since the database never actually got a usable image_url
+    // and the local copy could also silently fail to persist if the base64
+    // blew past the localStorage quota.
+    let finalImageSrc = pendingImageSrc || null;
+    if (finalImageSrc && finalImageSrc.startsWith('data:')) {
+      setModalSaveBtnLoading(true);
+      const { url, error } = await resolveImageForStorage(finalImageSrc);
+      setModalSaveBtnLoading(false);
+      if (error || !url) {
+        console.error('Supabase Storage Upload Error:', error);
+        showToast("Couldn't upload that image — check your connection and try again, or remove the image to save without one.");
+        return; // nothing is written; the form stays open with everything the user typed intact
+      }
+      // keep the deck thumbnail in sync too, so future picks/drags for any
+      // pet use the real URL instead of the local blob
+      const stagedMatch = stagedImages.find(i => i.src === finalImageSrc);
+      if (stagedMatch) { stagedMatch.src = url; saveImages(); renderDeck(); }
+      finalImageSrc = url;
+      pendingImageSrc = url;
+    }
+
     let savedPet;
 
-    // ---- 1. Local, optimistic save — this is the part that determines
-    // whether the form closes and the card appears, and it never depends on
-    // Supabase. Only a genuine local failure (bad form state, a rendering
-    // bug, etc.) lands in this catch; a rejected/erroring network call never
-    // will, since it's not awaited here.
+    // ---- 1. Local, optimistic save. By this point finalImageSrc is
+    // guaranteed to be either null or a real (already-uploaded) URL, never
+    // a multi-MB base64 string, so this is safe and fast. Only a genuine
+    // local failure (bad form state, a rendering bug, etc.) lands in this
+    // catch; a rejected/erroring network call never will, since the remote
+    // sync below isn't awaited here.
     try {
       if (editingId) {
         const pet = pets.find(p => p.id === editingId);
@@ -2281,7 +2336,7 @@
         pet.notes = modalNotesInput.value.trim();
         pet.hasMP = modalMPCheckbox.checked;
         pet.completed = modalCompletedCheckbox.checked;
-        pet.imageSrc = pendingImageSrc || null;
+        pet.imageSrc = finalImageSrc;
         savedPet = pet;
       } else {
         savedPet = {
@@ -2292,7 +2347,7 @@
           notes: modalNotesInput.value.trim(),
           hasMP: modalMPCheckbox.checked,
           completed: modalCompletedCheckbox.checked,
-          imageSrc: pendingImageSrc || null,
+          imageSrc: finalImageSrc,
           createdAt: Date.now()
         };
         pets.unshift(savedPet);
@@ -2315,13 +2370,14 @@
 
     // ---- 2. Best-effort remote sync — fully decoupled from the local save
     // above, which has already completed and closed the form by this point.
-    // Push this specific pet right away (rather than waiting on the 400ms
+    // The image (if any) is already a real URL by now, so this is just the
+    // row write; push it right away (rather than waiting on the 400ms
     // debounced batch sync already scheduled by savePets()) so a quick
     // refresh can't lose it, but never let a failure here (schema mismatch,
     // RLS rejection, offline, etc.) surface as a blocking error or reopen
     // the modal — it's logged for debugging and left flagged dirty so it
     // keeps being retried/protected until a sync actually succeeds.
-    syncPetImageAndUpsert(savedPet).then(({ error }) => {
+    sbUpsertPets([savedPet]).then(({ error }) => {
       if (error) {
         console.error('Supabase pet save error:', error);
       } else {
