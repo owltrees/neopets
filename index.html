@@ -353,6 +353,10 @@
   /* flat aesthetic with soft, modern light-gray framing (not harsh black) */
   body.theme-classic .shadow-card, body.theme-classic .shadow-cardhover { box-shadow: none !important; }
   body.theme-classic #imageDeckPanel { background-color: #FFFFFF !important; border: 1px solid #E2E8F0 !important; }
+  /* one step more compact/subtle than the default theme's 11px hint text */
+  body.theme-classic #deckDragHint { font-size: 10px !important; line-height: 1.35 !important; }
+  /* "Select render" popover label: 1px smaller than the default theme's 11px */
+  body.theme-classic .swap-popover-label { font-size: 10px !important; }
   body.theme-classic #petRosterShell { background-color: rgba(248,250,252,0.85) !important; border-color: #CBD5E1 !important; }
   body.theme-classic .pet-card { background-color: #FFFFFF !important; border: 1px solid #E2E8F0 !important; }
   body.theme-classic .pet-card:hover {
@@ -362,17 +366,38 @@
     transition: border-color 150ms ease, box-shadow 150ms ease !important;
   }
 
-  /* undo toast: compact profile + fixed dark-on-dark contrast bug on the Undo button */
-  body.theme-classic #undoToast { padding: 0.375rem 0.375rem 0.375rem 0.75rem !important; }
-  body.theme-classic #undoMessage { font-size: 0.75rem !important; }
-  body.theme-classic #undoBtn {
+  /* Toast notifications: significantly more compact vertical profile in Theme
+     2, matching the compact pill/button aesthetic used everywhere else in
+     this theme — shorter padding, tighter line-height, smaller text, so the
+     pill height shrinks without the text looking cramped or off-center. */
+  body.theme-classic #undoToast {
+    padding: 0.3rem 0.3rem 0.3rem 0.75rem !important;
+  }
+  body.theme-classic #undoMessage {
     font-size: 0.75rem !important;
+    line-height: 1.1 !important;
+  }
+  body.theme-classic #undoBtn {
+    font-size: 0.7rem !important;
     font-weight: 600 !important;
-    padding: 0.375rem 0.875rem !important;
+    line-height: 1.1 !important;
+    padding: 0.3rem 0.75rem !important;
     color: #FFFFFF !important;
     background-color: rgba(255,255,255,0.2) !important;
   }
   body.theme-classic #undoBtn:hover { background-color: rgba(255,255,255,0.3) !important; }
+  body.theme-classic #saveToast {
+    padding: 0.3rem 0.9rem 0.3rem 0.7rem !important;
+    gap: 0.375rem !important;
+  }
+  body.theme-classic #saveToast span {
+    font-size: 0.75rem !important;
+    line-height: 1.1 !important;
+  }
+  body.theme-classic #saveToast svg {
+    width: 12px !important;
+    height: 12px !important;
+  }
 
   /* status/account filter tag pills: black hover + selected state, neutral focus (no teal) */
   body.theme-classic .pill:hover { border-color: #000000 !important; color: #000000 !important; }
@@ -501,7 +526,7 @@
       <input id="siteGateInput" type="password" inputmode="text" placeholder="Password" class="w-full text-center text-sm px-4 py-2.5 rounded-xl border border-[#E2E8E4] mb-3 focus:outline-none">
       <button id="siteGateSubmit" type="submit" class="w-full py-2.5 bg-forest hover:bg-forestlight text-white text-sm font-bold rounded-xl transition">Enter</button>
     </form>
-    <p id="siteGateError" class="hidden text-xs text-rose-600 font-semibold mt-3">That password didn't match. Try again.</p>
+    <p id="siteGateError" class="hidden text-xs text-rose-600 font-semibold mt-3">The password you entered is incorrect. Please try again.</p>
   </div>
 </div>
 
@@ -623,7 +648,7 @@
   <aside class="lg:sticky lg:top-[130px] w-full lg:h-[calc(100vh-150px)]">
     <div id="imageDeckPanel" class="bg-white rounded-2xl border border-[#E2E8E4] shadow-card p-5 h-full flex flex-col gap-3 overflow-hidden">
       <div class="flex items-center justify-between shrink-0">
-        <h2 class="font-extrabold text-forest text-base">Image deck</h2>
+        <h2 id="imageDeckTitle" class="font-extrabold text-forest text-base">Image deck</h2>
         <span id="deckCount" class="text-xs font-bold text-tealdark bg-sage px-2 py-0.5 rounded-full">0</span>
       </div>
 
@@ -634,11 +659,11 @@
         <p class="text-xs text-[#6E8880] mt-0.5">or drag a file here</p>
       </div>
 
-      <p class="text-[11px] text-[#8AA39A] leading-relaxed shrink-0">Drag a thumbnail onto any pet card to assign it. Click a thumbnail to filter.</p>
+      <p id="deckDragHint" class="text-[11px] text-[#8AA39A] leading-relaxed shrink-0">Drag a thumbnail onto any pet card to assign it.</p>
 
       <!-- thumbnails: independently scrollable -->
       <div class="flex flex-col min-h-0 flex-1">
-        <h3 class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-2 shrink-0">Images</h3>
+        <h3 class="text-xs font-bold tracking-wide text-[#6E8880] mb-2 shrink-0">Filter by image</h3>
         <div id="deckEmpty" class="text-xs text-[#8AA39A] text-center py-4 border border-dashed border-[#E2E8E4] rounded-xl">
           No staged images yet.
         </div>
@@ -989,7 +1014,8 @@
   <div class="modal-card bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
     <h3 id="appConfirmTitle" class="font-extrabold text-lg text-forest mb-2">Are you sure?</h3>
     <p id="appConfirmMessage" class="text-sm text-[#4B5A54] leading-relaxed whitespace-pre-line mb-3"></p>
-    <input id="appConfirmInput" type="text" class="hidden w-full mb-3 px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A]">
+    <input id="appConfirmInput" type="text" class="hidden w-full mb-1 px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A]">
+    <p id="appConfirmError" class="hidden text-xs text-rose-600 font-semibold leading-relaxed mb-3"></p>
     <div class="flex items-center justify-end gap-2 mt-3">
       <button id="appConfirmCancelBtn" type="button" class="text-sm font-semibold text-[#6E8880] hover:text-forest px-4 py-2.5 rounded-full hover:bg-sage transition">Cancel</button>
       <button id="appConfirmOkBtn" type="button" class="text-sm font-bold text-white bg-forest hover:bg-forestlight px-5 py-2.5 rounded-full transition">OK</button>
@@ -1125,6 +1151,7 @@
   const STORAGE_PETS = 'neo_tracker_pets_v2';
   const STORAGE_IMAGES = 'neo_tracker_images_v1';
   const STORAGE_ACCOUNTS = 'neo_tracker_accounts_v1';
+  const STORAGE_HIDDEN_ACCOUNTS = 'neo_tracker_hidden_accounts_v1'; // accounts hidden from the Preview "Pets on [Account]" dropdown
   const STORAGE_STATUSES = 'neo_tracker_statuses_v1';
   const STORAGE_APP_THEME = 'neo_app_theme_v1'; // 'slate' | 'classic' — app-wide, separate from each pet's own Lookup theme
   const STORAGE_SITE_UNLOCKED = 'neo_site_unlocked_v1'; // Tier 1: master site gate
@@ -1140,6 +1167,7 @@
 
   // ---------- state ----------
   let ACCOUNTS = loadJSON(STORAGE_ACCOUNTS, [...DEFAULT_ACCOUNTS]);
+  let HIDDEN_ACCOUNTS = new Set(loadJSON(STORAGE_HIDDEN_ACCOUNTS, []));
   let STATUSES = loadJSON(STORAGE_STATUSES, [...DEFAULT_STATUSES]);
   let pets = migratePets(loadJSON(STORAGE_PETS, loadLegacyPets()));
   let stagedImages = loadJSON(STORAGE_IMAGES, []);
@@ -1186,6 +1214,11 @@
     localStorage.setItem(STORAGE_STATUSES, JSON.stringify(STATUSES));
     sbSaveSetting('accounts', ACCOUNTS);
     sbSaveSetting('statuses', STATUSES);
+  }
+  function saveHiddenAccounts() {
+    const arr = [...HIDDEN_ACCOUNTS];
+    localStorage.setItem(STORAGE_HIDDEN_ACCOUNTS, JSON.stringify(arr));
+    sbSaveSetting('hidden_accounts', arr);
   }
   function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
@@ -1351,20 +1384,24 @@
   const appConfirmTitle = document.getElementById('appConfirmTitle');
   const appConfirmMessage = document.getElementById('appConfirmMessage');
   const appConfirmInput = document.getElementById('appConfirmInput');
+  const appConfirmError = document.getElementById('appConfirmError');
   const appConfirmCancelBtn = document.getElementById('appConfirmCancelBtn');
   const appConfirmOkBtn = document.getElementById('appConfirmOkBtn');
   let appConfirmResolver = null;
   let appConfirmIsPrompt = false;
+  let appConfirmValidator = null; // optional async (value) => true | 'error message to show inline'
 
   function appConfirm(message, opts = {}) {
     const { title = 'Are you sure?', okText = 'Confirm', alertOnly = false } = opts;
     appConfirmIsPrompt = false;
+    appConfirmValidator = null;
     return new Promise((resolve) => {
       appConfirmResolver = resolve;
       appConfirmTitle.textContent = title;
       appConfirmMessage.textContent = message;
       appConfirmMessage.classList.remove('hidden');
       appConfirmInput.classList.add('hidden');
+      appConfirmError.classList.add('hidden');
       appConfirmOkBtn.textContent = okText;
       appConfirmCancelBtn.classList.toggle('hidden', alertOnly);
       showModalEl(appConfirmModal);
@@ -1373,10 +1410,15 @@
   function appAlert(message, title = 'Heads up') {
     return appConfirm(message, { title, okText: 'OK', alertOnly: true });
   }
-  // returns the entered string, or null if cancelled
+  // returns the entered string, or null if cancelled.
+  // opts.validate, if given, is an async (value) => true | 'error message'.
+  // While a validator is set, submitting an invalid value keeps the modal
+  // open and shows the message inline instead of resolving — the caller
+  // never sees a rejected/incorrect value, only the eventual valid one or null.
   function appPrompt(message, opts = {}) {
-    const { title = 'Enter a value', okText = 'Save', placeholder = '', defaultValue = '' } = opts;
+    const { title = 'Enter a value', okText = 'Save', placeholder = '', defaultValue = '', validate = null } = opts;
     appConfirmIsPrompt = true;
+    appConfirmValidator = validate;
     return new Promise((resolve) => {
       appConfirmResolver = resolve;
       appConfirmTitle.textContent = title;
@@ -1385,6 +1427,7 @@
       appConfirmInput.value = defaultValue || '';
       appConfirmInput.placeholder = placeholder;
       appConfirmInput.classList.remove('hidden');
+      appConfirmError.classList.add('hidden');
       appConfirmOkBtn.textContent = okText;
       appConfirmCancelBtn.classList.remove('hidden');
       showModalEl(appConfirmModal);
@@ -1393,16 +1436,36 @@
   }
   function closeAppConfirm(result) {
     hideModalEl(appConfirmModal);
+    appConfirmError.classList.add('hidden');
+    appConfirmValidator = null;
     if (appConfirmResolver) {
       appConfirmResolver(appConfirmIsPrompt ? (result ? appConfirmInput.value.trim() : null) : result);
       appConfirmResolver = null;
     }
   }
-  appConfirmOkBtn.addEventListener('click', () => closeAppConfirm(true));
+  // Confirming (OK click / Enter) runs the validator first, if one is set,
+  // instead of closing immediately — an invalid value shows an inline error
+  // and keeps the modal open for another attempt.
+  async function attemptConfirmOk() {
+    if (appConfirmIsPrompt && appConfirmValidator) {
+      appConfirmOkBtn.disabled = true;
+      const outcome = await appConfirmValidator(appConfirmInput.value.trim());
+      appConfirmOkBtn.disabled = false;
+      if (outcome !== true) {
+        appConfirmError.textContent = outcome;
+        appConfirmError.classList.remove('hidden');
+        appConfirmInput.value = '';
+        appConfirmInput.focus();
+        return;
+      }
+    }
+    closeAppConfirm(true);
+  }
+  appConfirmOkBtn.addEventListener('click', attemptConfirmOk);
   appConfirmCancelBtn.addEventListener('click', () => closeAppConfirm(false));
   appConfirmModal.addEventListener('click', (e) => { if (e.target === appConfirmModal) closeAppConfirm(false); });
   appConfirmInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); closeAppConfirm(true); }
+    if (e.key === 'Enter') { e.preventDefault(); attemptConfirmOk(); }
     else if (e.key === 'Escape') { closeAppConfirm(false); }
   });
   function escapeHtml(str) {
@@ -1599,6 +1662,8 @@
   const deckGrid = document.getElementById('deckGrid');
   const deckEmpty = document.getElementById('deckEmpty');
   const deckCount = document.getElementById('deckCount');
+  const deckDragHint = document.getElementById('deckDragHint');
+  const imageDeckTitle = document.getElementById('imageDeckTitle');
 
   let deckScrollTimer = null;
   deckGrid.addEventListener('scroll', () => {
@@ -1610,9 +1675,14 @@
   function renderDeck() {
     deckCount.textContent = stagedImages.length;
     deckEmpty.classList.toggle('hidden', stagedImages.length > 0);
+    if (imageDeckTitle) imageDeckTitle.textContent = isUnlocked ? 'Upload an image' : 'Image deck';
+    if (deckDragHint) {
+      deckDragHint.textContent = isUnlocked ? 'Drag a thumbnail onto any pet card to assign it.' : '';
+      deckDragHint.classList.toggle('hidden', !isUnlocked);
+    }
     deckGrid.innerHTML = stagedImages.map(img => `
       <div class="thumb-wrap group w-full">
-        <img src="${img.src}" draggable="true" data-img-id="${img.id}"
+        <img src="${img.src}" draggable="${isUnlocked ? 'true' : 'false'}" data-img-id="${img.id}"
           class="deck-thumb w-full aspect-square object-cover rounded-xl border border-[#E2E8E4] cursor-pointer transition ${filters.imageSrc === img.src ? 'ring-2 ring-teal' : ''}"
           alt="staged image">
         <button data-del-img="${img.id}" class="thumb-del absolute top-1 right-1 w-5 h-5 rounded-full bg-forest/80 text-white text-[10px] flex items-center justify-center shadow backdrop-blur-sm">
@@ -1687,18 +1757,21 @@
     // Lookup view (petpet image, rich-text description, etc.) this listener
     // must stay completely out of the way so those pastes never leak in here
     if (currentView === 'detail') return;
-    if (isEditableTarget(document.activeElement)) return; // let normal text pasting happen in inputs/textareas
     const items = (e.clipboardData || window.clipboardData) ? (e.clipboardData || window.clipboardData).items : null;
     if (!items) return;
-    let found = false;
-    for (const item of items) {
-      if (item.type && item.type.startsWith('image/')) {
-        found = true;
-        const blob = item.getAsFile();
-        stageFile(blob);
-      }
-    }
-    if (found) flashPasteZone(true);
+    const imageItem = Array.from(items).find(item => item.type && item.type.startsWith('image/'));
+    if (!imageItem) return; // no image on the clipboard — always let normal text pasting continue
+    const modalOpen = petModal && !petModal.classList.contains('hidden');
+    // Inside the Add/Edit Pet modal, an image paste always wins — even while
+    // the PET NAME input, notes textarea, or a dropdown is focused — so it
+    // never gets dumped as garbled text into whichever field has focus.
+    // Outside the modal, keep the old behavior: a focused input/textarea
+    // still gets priority for normal text pasting.
+    if (!modalOpen && isEditableTarget(document.activeElement)) return;
+    e.preventDefault();
+    const blob = imageItem.getAsFile();
+    stageFile(blob);
+    flashPasteZone(true);
   });
 
   function flashPasteZone(success) {
@@ -2094,17 +2167,32 @@
   let dragState = null; // { category, index }
 
   function renderTagList(container, category, list) {
-    container.innerHTML = list.map((tag, i) => `
+    container.innerHTML = list.map((tag, i) => {
+      const isAccount = category === 'account';
+      const isHidden = isAccount && HIDDEN_ACCOUNTS.has(tag);
+      const eyeBtn = isAccount ? `
+        <button type="button" draggable="false" style="pointer-events:auto" data-toggle-account-visibility="${escapeHtml(tag)}"
+          title="${isHidden ? 'Show this account in Preview' : 'Hide this account in Preview'}"
+          class="w-6 h-6 flex items-center justify-center rounded-full text-[#6E8880] hover:text-forest hover:bg-white transition shrink-0">
+          ${isHidden ? `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.4 4.6A10.7 10.7 0 0112 4.5c5 0 9 4.2 10.5 7.5-.6 1.3-1.5 2.7-2.7 3.9M6.1 6.1C4 7.6 2.4 9.7 1.5 12c1.5 3.3 5.5 7.5 10.5 7.5 1.6 0 3.1-.4 4.4-1.1"/></svg>
+          ` : `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1.5 12S5.5 4.5 12 4.5 22.5 12 22.5 12 18.5 19.5 12 19.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          `}
+        </button>
+      ` : '';
+      return `
       <div data-tag-index="${i}" class="tag-row flex items-center gap-2 bg-sage/60 border border-sagedeep rounded-lg pl-1.5 pr-2.5 py-1.5">
         <span draggable="true" class="drag-handle cursor-grab active:cursor-grabbing text-[#9CB3AC] hover:text-forest shrink-0 px-0.5" title="Drag to reorder">
           <svg width="12" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="5" r="1.6"/><circle cx="16" cy="5" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="8" cy="19" r="1.6"/><circle cx="16" cy="19" r="1.6"/></svg>
         </span>
-        <span class="flex-1 min-w-0 text-sm font-semibold text-forest truncate">${escapeHtml(tag)}</span>
+        <span class="flex-1 min-w-0 text-sm font-semibold text-forest truncate ${isHidden ? 'opacity-50' : ''}">${escapeHtml(tag)}</span>
+        ${eyeBtn}
         <button type="button" draggable="false" style="pointer-events:auto" data-delete-tag="${escapeHtml(tag)}" data-tag-type="${category}" class="w-6 h-6 flex items-center justify-center rounded-full text-rose-500 hover:text-rose-700 hover:bg-white transition shrink-0">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </div>
-    `).join('');
+    `; }).join('');
   }
 
   function renderTagEditor() {
@@ -2132,6 +2220,10 @@
     const liveList = category === 'account' ? ACCOUNTS : STATUSES;
     const liveIdx = liveList.indexOf(tag);
     if (liveIdx !== -1) liveList.splice(liveIdx, 1);
+    if (category === 'account' && HIDDEN_ACCOUNTS.has(tag)) {
+      HIDDEN_ACCOUNTS.delete(tag);
+      saveHiddenAccounts();
+    }
 
     // unassign this tag from any pets that currently have it
     let petsChanged = false;
@@ -2154,6 +2246,26 @@
   }
   window.handleDeleteTag = handleDeleteTag;
 
+  // Toggles whether an account tag appears in the Preview tab's "Pets on
+  // [Account]" dropdown. The account itself stays fully visible/editable in
+  // the Editor tab either way — this only affects that one dropdown list.
+  function toggleAccountVisibility(tag) {
+    if (!tag) return;
+    if (HIDDEN_ACCOUNTS.has(tag)) HIDDEN_ACCOUNTS.delete(tag);
+    else HIDDEN_ACCOUNTS.add(tag);
+    saveHiddenAccounts();
+    renderTagEditor();
+    renderPreviewAccountMenu();
+    // if the hidden account was the one currently shown in Preview, fall back
+    // so the dropdown never has a hidden account still "selected" out of view
+    if (previewAccount !== 'all' && HIDDEN_ACCOUNTS.has(previewAccount)) {
+      previewAccount = getDefaultPreviewAccount();
+      updatePreviewAccountLabel();
+      if (currentView === 'preview') renderPreview();
+    }
+  }
+  window.toggleAccountVisibility = toggleAccountVisibility;
+
   // top-level delegated listener: catches the delete click reliably regardless of
   // any intervening drag/modal event handling
   document.addEventListener('click', (e) => {
@@ -2162,6 +2274,13 @@
       e.preventDefault();
       e.stopPropagation();
       handleDeleteTag(btn.dataset.deleteTag, btn.dataset.tagType);
+      return;
+    }
+    const eyeBtn = e.target.closest('[data-toggle-account-visibility]');
+    if (eyeBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleAccountVisibility(eyeBtn.dataset.toggleAccountVisibility);
     }
   });
 
@@ -2286,13 +2405,15 @@
   }
 
   function renderPreviewAccountMenu() {
-    // if the tag currently shown was deleted from Edit tags, fall back to the default
-    if (previewAccount !== 'all' && !ACCOUNTS.includes(previewAccount)) {
+    // if the tag currently shown was deleted from Edit tags, or hidden from
+    // Preview, fall back to the default
+    if (previewAccount !== 'all' && (!ACCOUNTS.includes(previewAccount) || HIDDEN_ACCOUNTS.has(previewAccount))) {
       previewAccount = getDefaultPreviewAccount();
       updatePreviewAccountLabel();
     }
+    const visibleAccounts = ACCOUNTS.filter(a => !HIDDEN_ACCOUNTS.has(a));
     const itemCls = (active) => `w-full text-left px-4 py-2 text-sm font-semibold hover:bg-sage transition ${active ? 'text-tealdark' : 'text-forest'}`;
-    let html = ACCOUNTS.map(a => `<button data-preview-acc="${escapeHtml(a)}" class="${itemCls(a === previewAccount)}">${escapeHtml(a)}</button>`).join('');
+    let html = visibleAccounts.map(a => `<button data-preview-acc="${escapeHtml(a)}" class="${itemCls(a === previewAccount)}">${escapeHtml(a)}</button>`).join('');
     html += `<div class="h-px bg-[#E2E8E4] my-1"></div>`;
     html += `<button data-preview-acc="all" class="${itemCls(previewAccount === 'all')}">All accounts</button>`;
     previewAccountMenu.innerHTML = html;
@@ -2352,24 +2473,27 @@
   // shared `previewItems` array (not the filtered active/roster sub-list),
   // since swap-thumb/render-badge handlers look items up via previewItems[idx].
   // Roster cards (isRoster=true) aren't draggable — restoring them uses the
-  // explicit "Move to showcase" button instead of drag-and-drop.
+  // explicit "Move to showcase" button instead of drag-and-drop. Cards are
+  // also only draggable in the "All accounts" master view, since that's the
+  // only view with a Pet roster to bench them into.
+  let previewIsPrimaryView = false;
   function buildPreviewCardHTML(item, idx, isRoster) {
     const hasMultiple = item.images.length > 1;
     const selectedIdx = Math.min(Math.max(item.selectedIndex || 0, 0), item.images.length - 1);
     const primary = item.images[selectedIdx] || item.images[0] || null;
-    const dragAttrs = isRoster ? '' : `draggable="true" data-drag-name="${escapeHtml(item.name)}"`;
+    const dragAttrs = (isRoster || !previewIsPrimaryView) ? '' : `draggable="true" data-drag-name="${escapeHtml(item.name)}"`;
     return `
       <div class="flex flex-col items-center cursor-pointer" ${dragAttrs} data-pet-detail="${escapeHtml(item.name)}" title="View ${escapeHtml(item.name)}">
         <div class="preview-outer-frame relative">
           ${hasMultiple ? `
-            <div class="absolute -top-1.5 -left-1.5 z-20 group/badge">
+            <div class="absolute -top-1.5 -left-1.5 z-20 group/badge" data-badge-wrap>
               <button type="button" data-render-badge="${idx}" class="w-6 h-6 rounded-full bg-forest text-white flex items-center justify-center shadow border-2 border-white cursor-pointer" title="Select render">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="7" y="7" width="12" height="12" rx="1.5"/><path d="M4 15V5a1 1 0 0 1 1-1h10"/></svg>
               </button>
-              <div class="swap-popover hidden group-hover/badge:flex flex-col gap-2 absolute left-0 top-6 w-[196px] bg-white border border-[#E2E8E4] rounded-xl shadow-2xl p-3 z-20">
-                <div class="text-[11px] font-bold tracking-wide text-[#8AA39A] uppercase">Select render</div>
-                <div class="deck-scroll grid grid-cols-3 gap-1.5 max-h-[172px] overflow-y-auto">
-                  ${item.images.map((src, ti) => `<img src="${src}" data-swap-idx="${idx}" data-thumb-idx="${ti}" class="swap-thumb w-[50px] h-[50px] object-cover rounded-lg border-2 ${ti === selectedIdx ? 'border-teal' : 'border-transparent'} hover:border-teal cursor-pointer transition">`).join('')}
+              <div class="swap-popover hidden flex flex-col gap-2 absolute right-full top-0 mr-1 w-[132px] bg-white border border-[#E2E8E4] rounded-xl shadow-2xl p-3 z-20" data-swap-popover>
+                <div class="swap-popover-label text-[11px] font-bold tracking-wide text-[#8AA39A] uppercase">Select render</div>
+                <div class="deck-scroll grid grid-cols-2 gap-1 max-h-[110px] overflow-y-auto">
+                  ${item.images.map((src, ti) => `<img src="${src}" data-swap-idx="${idx}" data-thumb-idx="${ti}" class="swap-thumb w-[52px] h-[52px] object-cover rounded-lg border-2 ${ti === selectedIdx ? 'border-teal' : 'border-transparent'} hover:border-teal cursor-pointer transition">`).join('')}
                 </div>
               </div>
             </div>
@@ -2385,11 +2509,11 @@
   }
 
   function renderPreview() {
-    // the "Pet roster" staging feature only applies while viewing the FIRST
-    // account in the tag list (the primary account) — every other account
-    // (or "all") behaves exactly as before, with no roster splitting
-    const primaryAccountName = ACCOUNTS[0] || null;
-    const isPrimaryView = !!primaryAccountName && previewAccount === primaryAccountName;
+    // the "Pet roster" staging feature now lives on the "All accounts" master
+    // view only — every individual account tag (including the first one)
+    // behaves like a normal filtered view, with no roster splitting
+    const isPrimaryView = previewAccount === 'all';
+    previewIsPrimaryView = isPrimaryView;
 
     const filtered = pets.filter(p => {
       if (previewAccount === 'all') return true;
@@ -2436,6 +2560,7 @@
     }
 
     previewGrid.innerHTML = activeItems.map((item) => buildPreviewCardHTML(item, previewItems.indexOf(item), false)).join('');
+    wireSwapPopovers(previewGrid);
 
     // Pet roster: staging area, primary account only. While locked, the whole
     // section disappears if there's nothing benched to show — visitors don't
@@ -2449,6 +2574,7 @@
       petRosterGrid.style.gridTemplateColumns = 'repeat(4, minmax(0, 1fr))';
       petRosterGrid.style.gap = '1.5rem';
       petRosterGrid.innerHTML = rosterItems.map((item) => buildPreviewCardHTML(item, previewItems.indexOf(item), true)).join('');
+      wireSwapPopovers(petRosterGrid);
     }
   }
 
@@ -2486,16 +2612,10 @@
         thumb.classList.remove('border-transparent');
         thumb.classList.add('border-teal');
 
-        // auto-close the popover immediately on selection
-        const groupEl = thumb.closest('[class*="group/badge"]');
-        popover.style.display = 'none';
-        if (groupEl) {
-          const reopenOnLeave = () => {
-            popover.style.display = '';
-            groupEl.removeEventListener('mouseleave', reopenOnLeave);
-          };
-          groupEl.addEventListener('mouseleave', reopenOnLeave);
-        }
+        // clicking a render immediately selects it AND closes the popover —
+        // cancel any pending hover-delay timer so it can't override this
+        clearPopoverHideTimer(popover);
+        popover.classList.add('hidden');
       }
       return;
     }
@@ -2513,12 +2633,48 @@
   previewGrid.addEventListener('click', (e) => handlePreviewGridClick(e, previewGrid));
   petRosterGrid.addEventListener('click', (e) => handlePreviewGridClick(e, petRosterGrid));
 
+  // ---------- Select-render popover: hover-delay bridge ----------
+  // A plain CSS `group-hover` show/hide flickers shut while the cursor is
+  // crossing the small visual gap between the stack badge and the popover
+  // (which opens to the left of the card). Instead we show it immediately on
+  // hover and hide it after a short grace period, cancelling that timer if
+  // the cursor re-enters the badge OR the popover before it fires — so
+  // moving the mouse from one to the other never prematurely closes it.
+  const popoverHideTimers = new WeakMap();
+  function clearPopoverHideTimer(popover) {
+    const t = popoverHideTimers.get(popover);
+    if (t) { clearTimeout(t); popoverHideTimers.delete(popover); }
+  }
+  function showSwapPopover(popover) {
+    clearPopoverHideTimer(popover);
+    popover.classList.remove('hidden');
+  }
+  function scheduleHideSwapPopover(popover) {
+    clearPopoverHideTimer(popover);
+    popoverHideTimers.set(popover, setTimeout(() => {
+      popover.classList.add('hidden');
+      popoverHideTimers.delete(popover);
+    }, 250));
+  }
+  function wireSwapPopovers(gridEl) {
+    gridEl.querySelectorAll('[data-badge-wrap]').forEach(wrap => {
+      const popover = wrap.querySelector('[data-swap-popover]');
+      if (!popover) return;
+      wrap.addEventListener('mouseenter', () => showSwapPopover(popover));
+      wrap.addEventListener('mouseleave', () => scheduleHideSwapPopover(popover));
+      popover.addEventListener('mouseenter', () => showSwapPopover(popover));
+      popover.addEventListener('mouseleave', () => scheduleHideSwapPopover(popover));
+    });
+  }
+
   // ---------- Pet roster: drag-out-to-bench + click-to-restore staging ----------
   function movePetStaging(name, targetStatus) {
     if (!isUnlocked) return; // roster management is an editor feature — silently ignored while locked (button/drag are already hidden/disabled)
-    const primaryAccountName = ACCOUNTS[0] || null;
-    if (!name || !primaryAccountName) return;
-    const records = pets.filter(p => p.account === primaryAccountName && p.name === name);
+    if (!name) return;
+    // staging now spans every account (it's scoped to the "All accounts" view),
+    // so every record sharing this pet name gets benched/restored together,
+    // regardless of which account tag it's on
+    const records = pets.filter(p => p.name === name);
     if (!records.length) return;
     const previousStatus = records[0].stagingStatus === 'roster' ? 'roster' : 'active';
     if (previousStatus === targetStatus) return; // already there — nothing to do
@@ -2526,7 +2682,7 @@
     savePets();
     renderPreview();
     if (targetStatus === 'roster') {
-      lastDeleted = { type: 'stage-move', name, account: primaryAccountName, previousStatus };
+      lastDeleted = { type: 'stage-move', name, previousStatus };
       showToast(`"${name}" moved to Pet roster`);
     }
   }
@@ -2566,7 +2722,7 @@
     const name = draggingPetName;
     const droppedInsideActiveCard = previewShell.contains(e.target);
     draggingPetName = null;
-    if (!droppedInsideActiveCard) movePetStaging(name, 'roster');
+    if (!droppedInsideActiveCard && previewAccount === 'all') movePetStaging(name, 'roster');
   });
 
   // ---------- pet detail / lookup view ----------
@@ -4129,7 +4285,7 @@
         }
       } catch (e) { console.error('Undo media delete error:', e); }
     } else if (lastDeleted.type === 'stage-move') {
-      const records = pets.filter(p => p.account === lastDeleted.account && p.name === lastDeleted.name);
+      const records = pets.filter(p => p.name === lastDeleted.name);
       records.forEach(p => { p.stagingStatus = lastDeleted.previousStatus; });
       savePets();
       renderPreview();
@@ -4260,7 +4416,7 @@
     adminLockBtn.title = isUnlocked ? 'Unlocked — click to lock editing' : 'Locked — click to unlock editing';
     if (addPetBtn) addPetBtn.classList.toggle('hidden', !isUnlocked);
     if (editTagsBtn) editTagsBtn.classList.toggle('hidden', !isUnlocked);
-    if (typeof applyImageDeckLockUI === 'function') applyImageDeckLockUI();
+    safeCall(renderDeck); // hint text + thumbnail draggability both depend on lock state
     if (currentView === 'preview') renderPreview();
     if (currentView === 'detail') {
       // bio and petpet zone switch between their editable/read-only markup
@@ -4283,14 +4439,18 @@
   // a pet card while locked) — a single shared entry point for Tier 2.
   async function promptEnterPin() {
     if (!adminPinHash) { await promptCreatePin(); return; }
-    const val = await appPrompt('Enter your 4-digit PIN to make edits.', { title: 'Enter your PIN', okText: 'Unlock', placeholder: '••••' });
-    if (val === null) return;
-    const hash = await sha256Hex(val.trim());
-    if (hash === adminPinHash) {
-      setEditUnlocked(true);
-    } else {
-      await appAlert('That PIN doesn\u2019t match. Please try again.', 'Incorrect PIN');
-    }
+    const val = await appPrompt('Your 4-digit PIN', {
+      title: 'Enter your PIN to make edits',
+      okText: 'Continue',
+      placeholder: '••••',
+      validate: async (raw) => {
+        const hash = await sha256Hex(raw);
+        if (hash === adminPinHash) return true;
+        return 'The PIN you entered is incorrect. Please try again in order to make edits.';
+      }
+    });
+    if (val === null) return; // cancelled
+    setEditUnlocked(true);
   }
   adminLockBtn.addEventListener('click', async () => {
     if (isUnlocked) { setEditUnlocked(false); return; }
@@ -4343,6 +4503,7 @@
     if (hash === sitePasswordHash) {
       setSiteUnlocked(true);
     } else {
+      siteGateError.textContent = 'The password you entered is incorrect. Please try again.';
       siteGateError.classList.remove('hidden');
       siteGateInput.value = '';
       siteGateInput.focus();
@@ -4403,6 +4564,13 @@
         changed = true;
       } else if (STATUSES.length) {
         sbSaveSetting('statuses', STATUSES);
+      }
+      if (Array.isArray(remoteSettings.hidden_accounts)) {
+        HIDDEN_ACCOUNTS = new Set(remoteSettings.hidden_accounts);
+        localStorage.setItem(STORAGE_HIDDEN_ACCOUNTS, JSON.stringify([...HIDDEN_ACCOUNTS]));
+        changed = true;
+      } else if (HIDDEN_ACCOUNTS.size) {
+        sbSaveSetting('hidden_accounts', [...HIDDEN_ACCOUNTS]);
       }
       if (typeof remoteSettings.adminPinHash === 'string' && remoteSettings.adminPinHash) {
         adminPinHash = remoteSettings.adminPinHash;
