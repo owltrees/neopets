@@ -1044,15 +1044,44 @@
   let supabaseAvailable = !!supabase; // flips false permanently after a hard failure (missing tables/bucket), so we don't spam retries all session
 
   // ---- pets table ----
-  // Table shape expected: pets (id text primary key, data jsonb, updated_at timestamptz)
-  // The whole pet object is stored in `data` so this survives future schema
-  // additions (new fields on the pet object) without needing a migration.
+  // Table shape expected: pets (id text primary key, name text, status text,
+  // account text, notes text, has_mp boolean, is_completed boolean,
+  // image_url text, updated_at timestamptz). Columns are explicit/typed
+  // rather than a single jsonb blob, so reads/writes have to map field names
+  // both ways between the DB's snake_case columns and the app's internal
+  // camelCase pet objects.
+  function petToSupabaseRow(p) {
+    return {
+      id: p.id,
+      name: p.name || '',
+      status: p.status || null,
+      account: p.account || null,
+      notes: p.notes || '',
+      has_mp: !!p.hasMP,
+      is_completed: !!p.completed,
+      image_url: p.imageSrc || null,
+      updated_at: new Date().toISOString()
+    };
+  }
+  function supabaseRowToPet(row) {
+    return {
+      id: row.id,
+      name: row.name || '',
+      status: row.status || null,
+      account: row.account || null,
+      notes: row.notes || '',
+      hasMP: !!row.has_mp,
+      completed: !!row.is_completed,
+      imageSrc: row.image_url || null
+    };
+  }
   async function sbFetchPets() {
     if (!supabase) return null;
     try {
-      const { data, error } = await supabase.from('pets').select('id, data');
+      const { data, error } = await supabase.from('pets')
+        .select('id, name, status, account, notes, has_mp, is_completed, image_url');
       if (error) throw error;
-      return (data || []).map(row => Object.assign({ id: row.id }, row.data || {}));
+      return (data || []).map(supabaseRowToPet);
     } catch (e) { console.warn('Supabase: fetch pets failed, using local cache.', e); supabaseAvailable = false; return null; }
   }
   let petSyncTimer = null;
@@ -1061,13 +1090,21 @@
     clearTimeout(petSyncTimer);
     petSyncTimer = setTimeout(() => { sbUpsertPets(pets); }, 400);
   }
+  // Never throws — always resolves with { error } so callers can react
+  // (retry, keep a pet flagged dirty, etc.) without needing a try/catch of
+  // their own, and without a failed remote write ever blocking or undoing
+  // the optimistic local save that already happened.
   async function sbUpsertPets(list) {
-    if (!supabase || !supabaseAvailable || !list.length) return;
+    if (!supabase || !supabaseAvailable || !list.length) return { error: null };
     try {
-      const rows = list.map(p => ({ id: p.id, data: p, updated_at: new Date().toISOString() }));
+      const rows = list.map(petToSupabaseRow);
       const { error } = await supabase.from('pets').upsert(rows, { onConflict: 'id' });
       if (error) throw error;
-    } catch (e) { console.warn('Supabase: pet sync failed, changes are saved locally only.', e); }
+      return { error: null };
+    } catch (e) {
+      console.error('Supabase pet save error:', e);
+      return { error: e };
+    }
   }
   async function sbDeletePetById(id) {
     if (!supabase || !supabaseAvailable || !id) return;
@@ -2108,9 +2145,13 @@
     if (!name) { modalNameInput.focus(); modalNameInput.classList.add('border-rose-400'); return; }
     modalNameInput.classList.remove('border-rose-400');
 
-    const wasEditing = !!editingId;
     let savedPet;
 
+    // ---- 1. Local, optimistic save — this is the part that determines
+    // whether the form closes and the card appears, and it never depends on
+    // Supabase. Only a genuine local failure (bad form state, a rendering
+    // bug, etc.) lands in this catch; a rejected/erroring network call never
+    // will, since it's not awaited here.
     try {
       if (editingId) {
         const pet = pets.find(p => p.id === editingId);
@@ -2144,23 +2185,36 @@
         pets.unshift(savedPet);
       }
 
-      // mark this pet as locally dirty until it's confirmed synced, so a
-      // late-resolving startup fetch from Supabase can't clobber it
+      // mark this pet as locally dirty until a remote sync actually
+      // confirms it, so a late-resolving startup fetch (or a failed sync
+      // below) can't clobber it
       dirtyPetIds.add(savedPet.id);
 
-      savePets(); // local cache + debounced batch sync
-      // also push this specific pet immediately (not debounced) so a fast
-      // refresh right after saving can't lose it before the 400ms batch
-      // sync would have fired
-      sbUpsertPets([savedPet]).then(() => { dirtyPetIds.delete(savedPet.id); });
-
+      savePets(); // local cache (localStorage) + schedules the debounced batch sync
       renderGrid();
       closeModal();
       showSaveToast();
     } catch (err) {
       console.error('Failed to save pet:', err);
       showToast('Something went wrong saving that pet — please try again.');
+      return;
     }
+
+    // ---- 2. Best-effort remote sync — fully decoupled from the local save
+    // above, which has already completed and closed the form by this point.
+    // Push this specific pet right away (rather than waiting on the 400ms
+    // debounced batch sync already scheduled by savePets()) so a quick
+    // refresh can't lose it, but never let a failure here (schema mismatch,
+    // RLS rejection, offline, etc.) surface as a blocking error or reopen
+    // the modal — it's logged for debugging and left flagged dirty so it
+    // keeps being retried/protected until a sync actually succeeds.
+    sbUpsertPets([savedPet]).then(({ error }) => {
+      if (error) {
+        console.error('Supabase pet save error:', error);
+      } else {
+        dirtyPetIds.delete(savedPet.id);
+      }
+    });
   });
 
   modalDeleteBtn.addEventListener('click', () => {
