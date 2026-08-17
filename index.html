@@ -1041,82 +1041,51 @@
   const supabase = (window.supabase && window.supabase.createClient)
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
-  let supabaseAvailable = !!supabase; // flips false permanently after a hard failure (missing tables/bucket), so we don't spam retries all session
+  // NOTE: there used to be a single `supabaseAvailable` flag here that got
+  // set to false permanently after any hard failure, on the theory that a
+  // broken table means "don't bother retrying all session". In practice
+  // that was actively harmful: a schema mismatch on the pets query flipped
+  // the flag, which then silently short-circuited every *unrelated* call —
+  // including Storage uploads for images — with no attempt and no error of
+  // their own, just a generic "no public URL" downstream. Database reads/
+  // writes and Storage uploads are independent subsystems and can fail
+  // independently; each call below just checks `supabase` is configured at
+  // all and otherwise tries every time, catching and logging its own
+  // failure. This also means a config fix (RLS policy, bucket creation,
+  // etc.) made *during* a session takes effect on the very next save,
+  // without needing a full page reload to reset a stuck flag.
 
-  // ---- pets table ----
-  // Table shape expected: pets (id text primary key, name text, status text,
-  // account text, notes text, has_mp boolean, is_completed boolean,
-  // image_url text, updated_at timestamptz). Columns are explicit/typed
-  // rather than a single jsonb blob, so reads/writes have to map field names
-  // both ways between the DB's snake_case columns and the app's internal
-  // camelCase pet objects.
-  function petToSupabaseRow(p) {
-    // A pet's imageSrc can still be a raw base64 data: URL if the original
-    // upload attempt in stageFile() never reached Supabase Storage (offline,
-    // bucket/RLS misconfigured, CORS, etc.), and somehow still made it here
-    // instead of being caught by modalSaveBtn/the pet-card drop handler
-    // (both now strictly await resolveImageForStorage() before ever calling
-    // savePets()/sbUpsertPets). This is a last-resort safety net: never
-    // ship a raw base64 string in the row payload — that's exactly what was
-    // tripping Supabase/PostgREST's request size limit before.
-    const isEmbeddedImage = typeof p.imageSrc === 'string' && p.imageSrc.startsWith('data:');
-    if (isEmbeddedImage) {
-      console.error(`Supabase pet save: "${p.name}" (${p.id}) still has a local base64 image that was never uploaded to Supabase Storage — sending image_url as null instead of the raw data URL to avoid a payload-too-large failure.`);
-    }
-    return {
-      id: p.id,
-      name: p.name || '',
-      status: p.status || null,
-      account: p.account || null,
-      notes: p.notes || '',
-      has_mp: !!p.hasMP,
-      is_completed: !!p.completed,
-      image_url: isEmbeddedImage ? null : (p.imageSrc || null),
-      updated_at: new Date().toISOString()
-    };
-  }
-  function supabaseRowToPet(row) {
-    return {
-      id: row.id,
-      name: row.name || '',
-      status: row.status || null,
-      account: row.account || null,
-      notes: row.notes || '',
-      hasMP: !!row.has_mp,
-      completed: !!row.is_completed,
-      imageSrc: row.image_url || null
-    };
-  }
-  async function sbFetchPets() {
-    if (!supabase) return null;
-    try {
-      const { data, error } = await supabase.from('pets')
-        .select('id, name, status, account, notes, has_mp, is_completed, image_url');
-      if (error) throw error;
-      return (data || []).map(supabaseRowToPet);
-    } catch (e) { console.warn('Supabase: fetch pets failed, using local cache.', e); supabaseAvailable = false; return null; }
+  // ---- pets: stored as JSON inside the settings table, not a dedicated
+  // "pets" table ----
+  // A dedicated `pets` table with individual typed columns sounds cleaner,
+  // but it requires guessing this project's exact column names, and two
+  // separate guesses (a `data jsonb` column, then explicit `name`/`status`/
+  // etc. columns) both hit "column ... does not exist" in production. The
+  // `settings` table's shape (key text primary key, value jsonb) is simple,
+  // already confirmed working for accounts/statuses/PIN, and sidesteps the
+  // column-guessing problem entirely: the whole `pets` array is written as
+  // one JSON value under the key 'pets_data', field names and all (no
+  // snake_case/camelCase mapping needed either).
+  const PETS_SETTINGS_KEY = 'pets_data';
+  // Set once bootstrapFromSupabase() has fetched and merged with whatever
+  // was already remote. Before that, `pets` might be empty (a fresh device
+  // with nothing cached locally yet) or missing pets that only exist
+  // remotely — pushing it as-is would silently overwrite/wipe the remote
+  // list. Any sync attempted before this flips true is simply skipped;
+  // bootstrapFromSupabase() pushes the correct, fully-reconciled array
+  // itself the moment it finishes (see below), which also covers anything
+  // that tried to sync while it was still in flight, since `pets` will
+  // already include those changes by then.
+  let bootstrapDone = false;
+  function sbSavePetsToSettings(list) {
+    if (!bootstrapDone) return Promise.resolve({ error: null });
+    return sbSaveSetting(PETS_SETTINGS_KEY, list);
   }
   let petSyncTimer = null;
   function sbSyncPetsDebounced() {
-    if (!supabase || !supabaseAvailable) return;
+    if (!supabase) return;
     clearTimeout(petSyncTimer);
-    petSyncTimer = setTimeout(() => { sbUpsertPets(pets); }, 400);
-  }
-  // Never throws — always resolves with { error } so callers can react
-  // (retry, keep a pet flagged dirty, etc.) without needing a try/catch of
-  // their own, and without a failed remote write ever blocking or undoing
-  // the optimistic local save that already happened.
-  async function sbUpsertPets(list) {
-    if (!supabase || !supabaseAvailable || !list.length) return { error: null };
-    try {
-      const rows = list.map(petToSupabaseRow);
-      const { error } = await supabase.from('pets').upsert(rows, { onConflict: 'id' });
-      if (error) throw error;
-      return { error: null };
-    } catch (e) {
-      console.error('Supabase pet save error:', e);
-      return { error: e };
-    }
+    petSyncTimer = setTimeout(() => { sbSavePetsToSettings(pets); }, 400);
   }
   // Resolves whatever image src is about to be attached to a pet into
   // something safe to persist. If it's already a real URL (a prior
@@ -1139,15 +1108,8 @@
       return { url: null, error: e };
     }
   }
-  async function sbDeletePetById(id) {
-    if (!supabase || !supabaseAvailable || !id) return;
-    try {
-      const { error } = await supabase.from('pets').delete().eq('id', id);
-      if (error) throw error;
-    } catch (e) { console.warn('Supabase: delete pet failed remotely (removed locally).', e); }
-  }
 
-  // ---- settings table (tag config + admin PIN) ----
+  // ---- settings table (tag config, admin PIN, and now the pets list) ----
   // Table shape expected: settings (key text primary key, value jsonb)
   async function sbFetchSettings() {
     if (!supabase) return null;
@@ -1157,22 +1119,32 @@
       const map = {};
       (data || []).forEach(row => { map[row.key] = row.value; });
       return map;
-    } catch (e) { console.warn('Supabase: fetch settings failed, using local cache.', e); supabaseAvailable = false; return null; }
+    } catch (e) { console.error('Supabase Database Error (fetch settings):', e); return null; }
   }
+  // Never throws — always resolves with { error } so callers (modalSaveBtn,
+  // the pet-card drop handler, etc.) can react without their own try/catch,
+  // and without a failed remote write ever undoing the optimistic local
+  // save that already happened.
   async function sbSaveSetting(key, value) {
-    if (!supabase || !supabaseAvailable) return;
+    if (!supabase) return { error: null };
     try {
       const { error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' });
       if (error) throw error;
-    } catch (e) { console.warn(`Supabase: saving setting "${key}" failed, saved locally only.`, e); }
+      return { error: null };
+    } catch (e) {
+      console.error(`Supabase Database Error (saving "${key}"):`, e);
+      return { error: e };
+    }
   }
 
   // ---- pet-assets storage bucket ----
   // Uploads a File/Blob and returns its public URL, or null on any failure
   // (bucket not configured, offline, etc.) so callers can fall back to a
-  // local data URL instead of breaking the upload flow.
+  // local data URL instead of breaking the upload flow. Independent of the
+  // database calls above — a Storage failure here never touches, and is
+  // never caused by, anything happening with the settings/pets data.
   async function sbUploadAsset(file, folder) {
-    if (!supabase || !supabaseAvailable || !file) return null;
+    if (!supabase || !file) return null;
     try {
       const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop() : ((file.type && file.type.split('/')[1]) || 'bin');
       // unique per-upload filename so simultaneous/rapid uploads never collide
@@ -1183,8 +1155,13 @@
         contentType: file.type || undefined
       });
       if (uploadError) throw uploadError;
+      // getPublicUrl() is synchronous in supabase-js v2 (no network call) and
+      // returns { data: { publicUrl } } — never { error }, so there's nothing
+      // to throw here; just guard against a missing/malformed response shape.
       const { data } = supabase.storage.from('pet-assets').getPublicUrl(path);
-      return (data && data.publicUrl) || null;
+      const publicUrl = data && typeof data.publicUrl === 'string' ? data.publicUrl : null;
+      if (!publicUrl) console.error('Supabase Storage Upload Error: upload succeeded but getPublicUrl() returned no publicUrl', { path, data });
+      return publicUrl;
     } catch (e) { console.error('Supabase Storage Upload Error:', e); return null; }
   }
 
@@ -2105,7 +2082,7 @@
     dirtyPetIds.add(pet.id);
     savePets();
     renderGrid();
-    sbUpsertPets([pet]).then(({ error }) => {
+    sbSavePetsToSettings(pets).then(({ error }) => {
       if (error) console.error('Supabase pet save error (image drag-and-drop):', error);
       else dirtyPetIds.delete(pet.id);
     });
@@ -2371,13 +2348,13 @@
     // ---- 2. Best-effort remote sync — fully decoupled from the local save
     // above, which has already completed and closed the form by this point.
     // The image (if any) is already a real URL by now, so this is just the
-    // row write; push it right away (rather than waiting on the 400ms
-    // debounced batch sync already scheduled by savePets()) so a quick
-    // refresh can't lose it, but never let a failure here (schema mismatch,
-    // RLS rejection, offline, etc.) surface as a blocking error or reopen
-    // the modal — it's logged for debugging and left flagged dirty so it
-    // keeps being retried/protected until a sync actually succeeds.
-    sbUpsertPets([savedPet]).then(({ error }) => {
+    // write; push it right away (rather than waiting on the 400ms debounced
+    // batch sync already scheduled by savePets()) so a quick refresh can't
+    // lose it, but never let a failure here (RLS rejection, offline, etc.)
+    // surface as a blocking error or reopen the modal — it's logged for
+    // debugging and left flagged dirty so it keeps being retried/protected
+    // until a sync actually succeeds.
+    sbSavePetsToSettings(pets).then(({ error }) => {
       if (error) {
         console.error('Supabase pet save error:', error);
       } else {
@@ -2400,7 +2377,9 @@
     const data = pets[idx];
     pets.splice(idx, 1);
     savePets();
-    sbDeletePetById(id);
+    sbSavePetsToSettings(pets).then(({ error }) => {
+      if (error) console.error('Supabase pet save error (delete):', error);
+    });
     lastDeleted = { type: 'pet', data, index: idx };
     showToast(`"${data.name}" removed`);
     renderGrid();
@@ -4792,33 +4771,42 @@
   // already in this browser's local cache gets pushed up to seed it, and the
   // local view stays exactly as it was — no visual change, no data loss.
   async function bootstrapFromSupabase() {
-    if (!supabase) return;
+    if (!supabase) { bootstrapDone = true; return; }
     let changed = false;
 
-    const [remotePets, remoteSettings] = await Promise.all([sbFetchPets(), sbFetchSettings()]);
+    const remoteSettings = await sbFetchSettings();
+    const remotePets = (remoteSettings && Array.isArray(remoteSettings[PETS_SETTINGS_KEY])) ? remoteSettings[PETS_SETTINGS_KEY] : null;
 
-    if (remotePets) {
-      if (remotePets.length > 0) {
-        // Reconcile rather than overwrite. This fetch started at page load
-        // and can resolve well after the user has already added or edited a
-        // pet (see modalSaveBtn's click handler) — a plain `pets = remotePets`
-        // here would silently discard that change the instant this promise
-        // resolves, which is exactly the "Save changes does nothing" bug:
-        // the pet would flash into the grid and then disappear. Any pet that
-        // doesn't exist in the remote list yet, or that's still marked dirty
-        // (saved locally but not yet confirmed synced), is kept and pushed
-        // back up to the cloud; everything else defers to the remote copy.
-        const remoteById = new Map(remotePets.map(p => [p.id, p]));
-        const localKeep = pets.filter(p => !remoteById.has(p.id) || dirtyPetIds.has(p.id));
-        const remoteKeep = remotePets.filter(p => !localKeep.some(lp => lp.id === p.id));
-        pets = migratePets([...localKeep, ...remoteKeep]);
-        localStorage.setItem(STORAGE_PETS, JSON.stringify(pets));
-        changed = true;
-        if (localKeep.length) sbUpsertPets(localKeep); // make sure anything created/edited locally during this fetch actually reaches the cloud
-      } else if (pets.length > 0) {
-        sbUpsertPets(pets); // seed the cloud from whatever's already here locally
-      }
+    if (remotePets && remotePets.length > 0) {
+      // Reconcile rather than overwrite. This fetch started at page load
+      // and can resolve well after the user has already added or edited a
+      // pet (see modalSaveBtn's click handler) — a plain `pets = remotePets`
+      // here would silently discard that change the instant this promise
+      // resolves, which is exactly the "Save changes does nothing" bug:
+      // the pet would flash into the grid and then disappear. Any pet that
+      // doesn't exist in the remote list yet, or that's still marked dirty
+      // (saved locally but not yet confirmed synced), is kept; everything
+      // else defers to the remote copy.
+      const remoteById = new Map(remotePets.map(p => [p.id, p]));
+      const localKeep = pets.filter(p => !remoteById.has(p.id) || dirtyPetIds.has(p.id));
+      const remoteKeep = remotePets.filter(p => !localKeep.some(lp => lp.id === p.id));
+      pets = migratePets([...localKeep, ...remoteKeep]);
+      localStorage.setItem(STORAGE_PETS, JSON.stringify(pets));
+      changed = true;
     }
+    // `pets` at this point reflects the fully reconciled local state — any
+    // add/edit/delete made while the fetch above was in flight is already
+    // folded in (JS is single-threaded, so nothing but other event
+    // handlers could have run during that await, and they mutate this same
+    // array directly). Flip the gate and push it: this seeds the cloud if
+    // it was empty, pushes the merge result if there was one, and flushes
+    // anything that tried to sync while this was in flight — including a
+    // legitimate empty array if the user deleted their last pet in that
+    // window. sbSavePetsToSettings() itself is a no-op if `pets` already
+    // exactly matches what bootstrapDone-gated calls would have sent
+    // anyway, so this is safe to call unconditionally.
+    bootstrapDone = true;
+    sbSavePetsToSettings(pets);
 
     if (remoteSettings) {
       if (Array.isArray(remoteSettings.accounts) && remoteSettings.accounts.length) {
