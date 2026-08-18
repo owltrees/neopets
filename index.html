@@ -726,8 +726,9 @@
       <div id="pasteZone" tabindex="0"
         class="paste-zone shrink-0 cursor-pointer rounded-xl border-2 border-dashed border-[#D6EEE6] bg-sage/40 px-4 py-3.5 text-center transition">
         <p class="text-sm font-semibold text-forest">Paste an image with &#8984;V</p>
-        <p class="text-xs text-[#6E8880] mt-0.5">or drag a file here</p>
+        <p class="text-xs text-[#6E8880] mt-0.5">or drag / upload a file here</p>
       </div>
+      <input type="file" id="pasteZoneFileInput" accept="image/*" multiple class="hidden">
 
       <p id="deckDragHint" class="text-[11px] text-[#8AA39A] leading-relaxed shrink-0">Drag a thumbnail onto any pet card or Name Bank entry to assign it.</p>
 
@@ -735,7 +736,7 @@
       <div class="flex flex-col min-h-0 flex-1">
         <h3 id="imageDeckSubhead" class="text-xs font-bold tracking-wide text-[#6E8880] mb-2 shrink-0">Filter by image</h3>
         <div id="deckEmpty" class="text-xs text-[#8AA39A] text-center py-4 border border-dashed border-[#E2E8E4] rounded-xl">
-          No staged images yet.
+          No pet looks yet.
         </div>
         <div id="deckGrid" class="deck-scroll grid grid-cols-3 gap-3 w-full overflow-y-auto flex-1 min-h-0 content-start p-1 -m-1"></div>
       </div>
@@ -2239,7 +2240,15 @@
   // paste zone still supports click-focus + drag/drop files, but the actual
   // clipboard image paste is handled globally below so it works anywhere on the page
   const pasteZone = document.getElementById('pasteZone');
-  pasteZone.addEventListener('click', () => pasteZone.focus());
+  const pasteZoneFileInput = document.getElementById('pasteZoneFileInput');
+  pasteZone.addEventListener('click', () => {
+    pasteZone.focus();
+    pasteZoneFileInput.click();
+  });
+  pasteZoneFileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files.length) handleFiles(e.target.files);
+    e.target.value = ''; // reset so choosing the same file(s) again still fires 'change'
+  });
 
   function isEditableTarget(el) {
     if (!el) return false;
@@ -4918,7 +4927,6 @@
       </button>
       <p class="text-sm mt-2.5">
         <span id="petpetNameSpan" class="lookup-bold lookup-editable font-semibold" title="Click to edit name">${escapeHtml(pp.name || 'Petpet')}</span> the
-        <span id="petpetColorSpan" class="lookup-bold lookup-editable font-semibold" title="Click to edit color">${escapeHtml(pp.color || 'Unknown')}</span>
         <span id="petpetSpeciesSpan" class="lookup-bold lookup-editable font-semibold" title="Click to edit species">${escapeHtml(pp.species || 'Petpet')}</span>
       </p>
     `;
@@ -4935,16 +4943,6 @@
       onSave: (val) => {
         ensureCurrentLookup();
         currentLookup.petpet.name = val || 'Petpet';
-        persistLookup();
-        showSaveToast();
-        renderPetpetZone();
-      }
-    });
-    enableInlineEdit(document.getElementById('petpetColorSpan'), {
-      getValue: () => pp.color || 'Unknown',
-      onSave: (val) => {
-        ensureCurrentLookup();
-        currentLookup.petpet.color = val;
         persistLookup();
         showSaveToast();
         renderPetpetZone();
