@@ -337,7 +337,10 @@
   body.theme-classic #customizeDrawerCloseBottomBtn,
   body.theme-classic #stackEditSaveBtn,
   body.theme-classic #stackEditCancelBtn,
-  body.theme-classic #wishlistItemDoneBtn {
+  body.theme-classic #wishlistItemDoneBtn,
+  body.theme-classic #pasteChooserLooksBtn,
+  body.theme-classic #pasteChooserWishlistBtn,
+  body.theme-classic #pasteChooserCancelBtn {
     padding-top: 0.375rem !important;
     padding-bottom: 0.375rem !important;
     padding-left: 0.875rem !important;
@@ -347,7 +350,18 @@
     border-radius: 0.75rem !important;
   }
   body.theme-classic #modalCancelBtn:hover,
-  body.theme-classic #appConfirmCancelBtn:hover { background-color: #F1F5F9 !important; }
+  body.theme-classic #appConfirmCancelBtn:hover,
+  body.theme-classic #pasteChooserCancelBtn:hover { background-color: #F1F5F9 !important; }
+  /* pasteChooserWishlistBtn is a bordered secondary CTA, unlike the flat
+     cancel buttons above — on its own it'd pick up the generic teal/sage
+     hover treatment (border pops to black, from .hover\:border-teal), which
+     reads as a heavier, more "accented" hover than the plain background-only
+     tint every other secondary control in Theme 2 uses (Name Bank's toggle,
+     for one). Pin it to that same plain background-only hover instead. */
+  body.theme-classic #pasteChooserWishlistBtn:hover {
+    background-color: #F1F5F9 !important;
+    border-color: #CBD5E1 !important;
+  }
   /* customizeDrawerCloseBottomBtn uses plain Tailwind gray/black, not .bg-forest,
      so it needs its own lighter-hover fix too */
   body.theme-classic #customizeDrawerCloseBottomBtn { background-color: #0F172A !important; transition: background-color 150ms ease-in-out !important; }
@@ -491,8 +505,10 @@
      since it only rewrites the plain, non-variant class names. Scoped
      narrowly to this section rather than adding a blanket fix for every
      such variant site-wide. */
-  body.theme-classic #nameBankSection .group:hover .group-hover\:text-tealdark { color: #111827 !important; }
-  body.theme-classic #nameBankSection .hover\:bg-teal:hover { background-color: #111827 !important; }
+  body.theme-classic #nameBankSection .group:hover .group-hover\:text-tealdark,
+  body.theme-classic #wishlistSection .group:hover .group-hover\:text-tealdark { color: #111827 !important; }
+  body.theme-classic #nameBankSection .hover\:bg-teal:hover,
+  body.theme-classic #wishlistSection .hover\:bg-teal:hover { background-color: #111827 !important; }
   /* A touch tighter than Theme 1 — matches the denser, more compact feel
      this theme already uses for buttons and tags elsewhere. */
   body.theme-classic .name-bank-card { padding: 10px 12px !important; gap: 0.3rem !important; }
@@ -801,7 +817,7 @@
         <h2 class="text-base font-extrabold text-forest group-hover:text-tealdark transition">Pet wishlist <span id="wishlistCount" class="text-[#8AA39A] font-semibold"></span></h2>
       </button>
       <div id="wishlistBody" class="hidden mt-3">
-        <p class="text-xs text-[#6E8880] mb-3">Uncustomized pets or pet token wishes. Not tied to a name yet.</p>
+        <p class="text-xs text-[#6E8880] mb-3">Your wishlist pet styles without names. <a href="https://wardrobe.jellyneo.net/preview/all-pet-styles/?sort=3&amp;sort_dir=desc" target="_blank" rel="noopener noreferrer" class="text-tealdark font-semibold hover:underline inline-flex items-center gap-0.5">View all pet styles on JellyNeo<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="shrink-0"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg></a></p>
         <div id="wishlistEmpty" class="hidden text-center py-8 text-sm text-[#8AA39A] border border-dashed border-[#E2E8E4] rounded-xl">
           Nothing here yet — paste in a reference image (⌘V) to get started.
         </div>
@@ -1056,16 +1072,20 @@
           </div>
         </div>
 
-        <div id="modalOwnerCtaRow" class="hidden grid grid-cols-3 gap-1.5 mb-8">
-          <button type="button" id="modalViewPetBtn" title="Open this pet's Neopets lookup in a new tab" class="neo-lookup-btn inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View Neopet</button>
-          <button type="button" id="modalViewPetpageBtn" title="Open this pet's petpage in a new tab" class="neo-lookup-btn inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View petpage</button>
-          <button type="button" id="modalViewOwnerBtn" title="Open (or set) this pet's owner userlookup in a new tab" class="neo-lookup-btn inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View owner</button>
+        <div id="modalOwnerCtaRow" class="hidden flex gap-1.5 mb-12" style="margin-bottom: 48px;">
+          <button type="button" id="modalViewPetBtn" title="Open this pet's Neopets lookup in a new tab" class="neo-lookup-btn flex-1 inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View Neopet</button>
+          <button type="button" id="modalViewPetpageBtn" title="Open this pet's petpage in a new tab" class="neo-lookup-btn flex-1 inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View petpage</button>
+          <button type="button" id="modalViewOwnerBtn" title="Open (or set) this pet's owner userlookup in a new tab" class="hidden neo-lookup-btn flex-1 inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View owner</button>
         </div>
 
         <div class="flex flex-col">
           <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Notes</label>
           <textarea id="modalNotesInput" rows="2" placeholder="Add any notes, keywords, or context..."
             class="deck-scroll w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] resize-none min-h-[52px]"></textarea>
+          <button type="button" id="modalAddOwnerInfoBtn" title="Searches the owner info files for this owner's name and adds any matching line(s) to Notes" class="hidden mt-2 neo-lookup-btn w-full inline-flex items-center justify-center gap-1.5 text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="shrink-0"><circle cx="10" cy="10" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
+            Add owner info to notes
+          </button>
         </div>
 
         <div id="modalCheckboxesWrap" class="space-y-2">
@@ -1134,10 +1154,10 @@
           class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] transition-colors">
         <p id="searchNeopetOwnerHint" class="hidden text-[11px] font-semibold text-rose-600 mt-1">Please enter an owner to view!</p>
       </div>
-      <div id="searchNeopetCtaRow" class="hidden grid grid-cols-3 gap-1.5">
-        <button type="button" id="searchNeopetViewPetBtn" title="Open this pet's Neopets lookup in a new tab" class="neo-lookup-btn inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View Neopet</button>
-        <button type="button" id="searchNeopetViewPetpageBtn" title="Open this pet's petpage in a new tab" class="neo-lookup-btn inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View petpage</button>
-        <button type="button" id="searchNeopetViewOwnerBtn" title="Open this name's owner userlookup in a new tab" class="neo-lookup-btn inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View owner</button>
+      <div id="searchNeopetCtaRow" class="hidden flex gap-1.5">
+        <button type="button" id="searchNeopetViewPetBtn" title="Open this pet's Neopets lookup in a new tab" class="neo-lookup-btn flex-1 inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View Neopet</button>
+        <button type="button" id="searchNeopetViewPetpageBtn" title="Open this pet's petpage in a new tab" class="neo-lookup-btn flex-1 inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View petpage</button>
+        <button type="button" id="searchNeopetViewOwnerBtn" title="Open this name's owner userlookup in a new tab" class="hidden neo-lookup-btn flex-1 inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View owner</button>
       </div>
 
       <div class="pt-3 border-t border-dashed border-[#E2E8E4]">
@@ -1170,6 +1190,10 @@
             <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Notes</label>
             <textarea id="searchNeopetNotesInput" rows="2" placeholder="Add any notes, keywords, or context..."
               class="deck-scroll w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] resize-none min-h-[52px]"></textarea>
+            <button type="button" id="searchNeopetAddOwnerInfoBtn" title="Searches the owner info files for this owner's name and adds any matching line(s) to Notes" class="hidden mt-2 neo-lookup-btn w-full inline-flex items-center justify-center gap-1.5 text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="shrink-0"><circle cx="10" cy="10" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
+              Add owner info to notes
+            </button>
           </div>
           <button type="button" id="searchNeopetSaveBtn" class="w-full text-sm font-bold text-white bg-forest hover:bg-forestlight px-4 py-2.5 rounded-full transition">Save and add</button>
         </div>
@@ -1425,7 +1449,70 @@
     }
   }
 
-  // ---- pet-assets storage bucket ----
+  // ---- owner-info text files ----
+  // Lives in a folder inside the same 'pet-assets' bucket already used for
+  // images, so there's no separate bucket/policy to set up — just create an
+  // "owner-notes" folder inside that bucket (in the Supabase dashboard) and
+  // drop the .txt files in. Fetched once per page load and cached in memory
+  // (there could be hundreds of small files, and the list rarely changes
+  // mid-session), so "Add owner info to notes" is instant after the first
+  // search. Uses .download() rather than public URLs so this works the same
+  // whether the bucket's read policy is public or restricted to the anon
+  // key, matching how sbUploadAsset() already handles images.
+  const OWNER_INFO_FOLDER = 'owner-notes';
+  let ownerInfoFilesCache = null; // null = not loaded yet; [] or populated array once it has been
+  let ownerInfoFilesLoadingPromise = null;
+  async function loadOwnerInfoFiles() {
+    if (ownerInfoFilesCache) return ownerInfoFilesCache;
+    if (ownerInfoFilesLoadingPromise) return ownerInfoFilesLoadingPromise;
+    if (!supabase) { ownerInfoFilesCache = []; return ownerInfoFilesCache; }
+    ownerInfoFilesLoadingPromise = (async () => {
+      try {
+        const { data: fileList, error } = await supabase.storage.from('pet-assets').list(OWNER_INFO_FOLDER, { limit: 1000 });
+        if (error) throw error;
+        const txtFiles = (fileList || []).filter(f => f.name && f.name.toLowerCase().endsWith('.txt'));
+        const downloaded = await Promise.all(txtFiles.map(async (f) => {
+          try {
+            const { data: blob, error: dlError } = await supabase.storage.from('pet-assets').download(`${OWNER_INFO_FOLDER}/${f.name}`);
+            if (dlError || !blob) return null;
+            const text = await blob.text();
+            return { name: f.name, text };
+          } catch (e) { console.error('Owner info file download error:', f.name, e); return null; }
+        }));
+        ownerInfoFilesCache = downloaded.filter(Boolean);
+        return ownerInfoFilesCache;
+      } catch (e) {
+        console.error('Supabase Storage Error (list owner-notes):', e);
+        ownerInfoFilesCache = [];
+        return ownerInfoFilesCache;
+      } finally {
+        ownerInfoFilesLoadingPromise = null;
+      }
+    })();
+    return ownerInfoFilesLoadingPromise;
+  }
+  // Exact substring match against the owner name as typed (case-insensitive,
+  // so "Bob" also catches "bob" or "BOB") — not a fuzzy or partial-word
+  // match — and returns the full line(s) it appears on, deduped, across
+  // every file.
+  function findOwnerInfoLines(ownerName, files) {
+    const needle = (ownerName || '').trim().toLowerCase();
+    if (!needle) return [];
+    const seen = new Set();
+    const matches = [];
+    files.forEach(({ text }) => {
+      text.split(/\r?\n/).forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed && trimmed.toLowerCase().includes(needle) && !seen.has(trimmed)) {
+          seen.add(trimmed);
+          matches.push(trimmed);
+        }
+      });
+    });
+    return matches;
+  }
+
+
   // Uploads a File/Blob and returns its public URL, or null on any failure
   // (bucket not configured, offline, etc.) so callers can fall back to a
   // local data URL instead of breaking the upload flow. Independent of the
@@ -3307,6 +3394,7 @@
   const modalAccountFieldWrap = document.getElementById('modalAccountFieldWrap');
   const modalOwnerFieldWrap = document.getElementById('modalOwnerFieldWrap');
   const modalOwnerCtaRow = document.getElementById('modalOwnerCtaRow');
+  const modalAddOwnerInfoBtn = document.getElementById('modalAddOwnerInfoBtn');
   const modalViewPetBtn = document.getElementById('modalViewPetBtn');
   const modalViewPetpageBtn = document.getElementById('modalViewPetpageBtn');
   const modalViewOwnerBtn = document.getElementById('modalViewOwnerBtn');
@@ -3332,6 +3420,8 @@
       modalAccountFieldWrap.classList.remove('hidden');
       modalOwnerFieldWrap.classList.add('hidden');
       modalOwnerCtaRow.classList.add('hidden');
+      modalAddOwnerInfoBtn.classList.add('hidden');
+      modalViewOwnerBtn.classList.add('hidden');
       return;
     }
     const status = modalStatusSelect.value;
@@ -3343,8 +3433,51 @@
     modalAccountFieldWrap.classList.toggle('hidden', isBlank || showOwnerFields);
     modalOwnerFieldWrap.classList.toggle('hidden', !showOwnerFields);
     modalOwnerCtaRow.classList.toggle('hidden', !showOwnerFields);
+    updateModalOwnerDependentButtons();
   }
   modalStatusSelect.addEventListener('change', updateModalStatusDependentFields);
+
+  // "Add owner info to notes" and "View owner" only make sense once there's
+  // an owner typed in AND that field is actually on screen (see
+  // updateModalStatusDependentFields above for when that is) — otherwise
+  // there's nothing to search for or look up.
+  function updateModalOwnerDependentButtons() {
+    const ownerFieldVisible = !modalOwnerFieldWrap.classList.contains('hidden');
+    modalAddOwnerInfoBtn.classList.toggle('hidden', !ownerFieldVisible || !modalOwnerInput.value.trim());
+    modalViewOwnerBtn.classList.toggle('hidden', !ownerFieldVisible || !modalOwnerInput.value.trim());
+  }
+  modalOwnerInput.addEventListener('input', updateModalOwnerDependentButtons);
+
+  const modalAddOwnerInfoBtnDefaultLabel = modalAddOwnerInfoBtn.innerHTML;
+  modalAddOwnerInfoBtn.addEventListener('click', async () => {
+    const owner = modalOwnerInput.value.trim();
+    if (!owner || modalAddOwnerInfoBtn.disabled) return;
+    modalAddOwnerInfoBtn.disabled = true;
+    modalAddOwnerInfoBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    modalAddOwnerInfoBtn.textContent = 'Searching…';
+    try {
+      const files = await loadOwnerInfoFiles();
+      const matches = findOwnerInfoLines(owner, files);
+      if (!matches.length) {
+        modalAddOwnerInfoBtn.textContent = 'No matching info found';
+        setTimeout(() => { modalAddOwnerInfoBtn.innerHTML = modalAddOwnerInfoBtnDefaultLabel; }, 1800);
+        return;
+      }
+      const addition = matches.join('\n');
+      modalNotesInput.value = modalNotesInput.value.trim()
+        ? `${modalNotesInput.value.trim()}\n${addition}`
+        : addition;
+      modalAddOwnerInfoBtn.innerHTML = modalAddOwnerInfoBtnDefaultLabel;
+      showSaveToast(matches.length > 1 ? `${matches.length} lines added to notes` : 'Line added to notes');
+    } catch (e) {
+      console.error('Add owner info to notes failed:', e);
+      modalAddOwnerInfoBtn.textContent = 'Search failed — try again';
+      setTimeout(() => { modalAddOwnerInfoBtn.innerHTML = modalAddOwnerInfoBtnDefaultLabel; }, 1800);
+    } finally {
+      modalAddOwnerInfoBtn.disabled = false;
+      modalAddOwnerInfoBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+    }
+  });
 
   modalViewPetBtn.addEventListener('click', () => {
     if (!editingId) return;
@@ -3438,15 +3571,26 @@
     if (names.length > 1 && !editingId) {
       modalNameCountHint.textContent = `${names.length} pets will be created`;
       modalNameCountHint.classList.remove('hidden');
-    } else if (names.length > 1 && editingId) {
-      modalNameCountHint.textContent = `Editing supports one name at a time — remove the extra lines to save`;
-      modalNameCountHint.classList.remove('hidden');
     } else {
       modalNameCountHint.classList.add('hidden');
     }
   }
 
-  modalNameInput.addEventListener('input', () => { resizeModalNameInput(); updateModalNameCountHint(); });
+  // Editing an existing pet is always a single name — Enter is blocked
+  // outright, and any newline that sneaks in another way (e.g. a multi-line
+  // paste) is stripped immediately, so there's never a multi-name state to
+  // warn about in edit mode.
+  modalNameInput.addEventListener('keydown', (e) => {
+    if (editingId && e.key === 'Enter') e.preventDefault();
+  });
+
+  modalNameInput.addEventListener('input', () => {
+    if (editingId && modalNameInput.value.indexOf('\n') !== -1) {
+      modalNameInput.value = modalNameInput.value.replace(/\n/g, '');
+    }
+    resizeModalNameInput();
+    updateModalNameCountHint();
+  });
   window.addEventListener('resize', () => {
     if (petModal && !petModal.classList.contains('hidden')) resizeModalNameInput();
   });
@@ -3668,6 +3812,10 @@
     modalNameInput.value = pet ? pet.name : '';
     modalNameInput.classList.remove('border-rose-400');
     modalNotesInput.value = pet ? (pet.notes || '') : '';
+    // Editing a single existing pet gets a taller Notes box (60% more than
+    // the default ~52px) since there's more room to fill in on a settled
+    // entry; a brand-new pet (or bulk add) keeps the compact default.
+    modalNotesInput.style.setProperty('min-height', pet ? '83px' : '52px', 'important');
     modalOwnerInput.value = pet ? (pet.owner || '') : '';
     renderModalTagOptions();
     modalAccountSelect.value = pet ? (pet.account || '') : '';
@@ -3882,6 +4030,7 @@
   const searchNeopetOwnerInput = document.getElementById('searchNeopetOwnerInput');
   const searchNeopetOwnerHint = document.getElementById('searchNeopetOwnerHint');
   const searchNeopetCtaRow = document.getElementById('searchNeopetCtaRow');
+  const searchNeopetViewOwnerBtn = document.getElementById('searchNeopetViewOwnerBtn');
   const searchNeopetToggleBankBtn = document.getElementById('searchNeopetToggleBankBtn');
   const searchNeopetToggleBankIcon = document.getElementById('searchNeopetToggleBankIcon');
   const searchNeopetToggleBankLabel = document.getElementById('searchNeopetToggleBankLabel');
@@ -3889,6 +4038,7 @@
   const searchNeopetStatusSelect = document.getElementById('searchNeopetStatusSelect');
   const searchNeopetAccountSelect = document.getElementById('searchNeopetAccountSelect');
   const searchNeopetNotesInput = document.getElementById('searchNeopetNotesInput');
+  const searchNeopetAddOwnerInfoBtn = document.getElementById('searchNeopetAddOwnerInfoBtn');
 
   function clearSearchNeopetOwnerHint() {
     searchNeopetOwnerInput.classList.remove('border-rose-400', 'ring-2', 'ring-rose-200');
@@ -3900,6 +4050,8 @@
     searchNeopetOwnerInput.value = '';
     clearSearchNeopetOwnerHint();
     searchNeopetCtaRow.classList.add('hidden');
+    searchNeopetViewOwnerBtn.classList.add('hidden');
+    searchNeopetAddOwnerInfoBtn.classList.add('hidden');
     searchNeopetBankFields.classList.add('hidden');
     searchNeopetToggleBankIcon.classList.remove('rotate-45');
     searchNeopetToggleBankLabel.textContent = 'Add name';
@@ -3923,7 +4075,11 @@
   searchNeopetNameInput.addEventListener('input', () => {
     searchNeopetCtaRow.classList.toggle('hidden', !searchNeopetNameInput.value.trim());
   });
-  searchNeopetOwnerInput.addEventListener('input', clearSearchNeopetOwnerHint);
+  searchNeopetOwnerInput.addEventListener('input', () => {
+    clearSearchNeopetOwnerHint();
+    searchNeopetViewOwnerBtn.classList.toggle('hidden', !searchNeopetOwnerInput.value.trim());
+    searchNeopetAddOwnerInfoBtn.classList.toggle('hidden', !searchNeopetOwnerInput.value.trim());
+  });
 
   document.getElementById('searchNeopetViewPetBtn').addEventListener('click', () => {
     const name = searchNeopetNameInput.value.trim();
@@ -3946,6 +4102,37 @@
       return;
     }
     window.open(buildOwnerLookupUrl(owner), '_blank', 'noopener,noreferrer');
+  });
+
+  const searchNeopetAddOwnerInfoBtnDefaultLabel = searchNeopetAddOwnerInfoBtn.innerHTML;
+  searchNeopetAddOwnerInfoBtn.addEventListener('click', async () => {
+    const owner = searchNeopetOwnerInput.value.trim();
+    if (!owner || searchNeopetAddOwnerInfoBtn.disabled) return;
+    searchNeopetAddOwnerInfoBtn.disabled = true;
+    searchNeopetAddOwnerInfoBtn.classList.add('opacity-60', 'cursor-not-allowed');
+    searchNeopetAddOwnerInfoBtn.textContent = 'Searching…';
+    try {
+      const files = await loadOwnerInfoFiles();
+      const matches = findOwnerInfoLines(owner, files);
+      if (!matches.length) {
+        searchNeopetAddOwnerInfoBtn.textContent = 'No matching info found';
+        setTimeout(() => { searchNeopetAddOwnerInfoBtn.innerHTML = searchNeopetAddOwnerInfoBtnDefaultLabel; }, 1800);
+        return;
+      }
+      const addition = matches.join('\n');
+      searchNeopetNotesInput.value = searchNeopetNotesInput.value.trim()
+        ? `${searchNeopetNotesInput.value.trim()}\n${addition}`
+        : addition;
+      searchNeopetAddOwnerInfoBtn.innerHTML = searchNeopetAddOwnerInfoBtnDefaultLabel;
+      showSaveToast(matches.length > 1 ? `${matches.length} lines added to notes` : 'Line added to notes');
+    } catch (e) {
+      console.error('Add owner info to notes failed:', e);
+      searchNeopetAddOwnerInfoBtn.textContent = 'Search failed — try again';
+      setTimeout(() => { searchNeopetAddOwnerInfoBtn.innerHTML = searchNeopetAddOwnerInfoBtnDefaultLabel; }, 1800);
+    } finally {
+      searchNeopetAddOwnerInfoBtn.disabled = false;
+      searchNeopetAddOwnerInfoBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+    }
   });
 
   // The "+"/"Add name" toggle becomes an "×"/"Cancel" close control once the
