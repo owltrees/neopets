@@ -101,8 +101,8 @@
     outline: none; border-color: #15B8B0; box-shadow: 0 0 0 3px rgba(21,184,176,0.15);
   }
 
-  .pet-card { width: 175px; border-radius: 0 !important; }
-  .pet-img-stage { height: 175px; }
+  .pet-card { width: 185px; border-radius: 0 !important; }
+  .pet-img-stage { height: 185px; }
   .accordion-wrap { overflow: hidden; transition: max-height .2s ease, opacity .2s ease, margin .2s ease; }
 
   #cardMenu { position: fixed; z-index: 60; }
@@ -115,6 +115,12 @@
   .deck-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 8px; }
   .deck-scroll:hover::-webkit-scrollbar-thumb, .deck-scroll.is-scrolling::-webkit-scrollbar-thumb { background: #D6EEE6; }
   .deck-scroll::-webkit-scrollbar-thumb:hover { background: #15B8B0; }
+
+  /* "select render" popover: which thumbnail is the pet's currently active
+     render. Kept as its own named class (rather than an inline arbitrary
+     Tailwind color) specifically so the classic theme override below has a
+     stable, non-bracket selector to target. */
+  .media-switch-thumb-active { --tw-ring-color: #008B9E; }
 
   /* view tabs */
   .view-tab { transition: all .15s ease; color: #6E8880; background: none; border: none; }
@@ -267,19 +273,22 @@
      the yellow star banner, with a dark tint on hover/active to match the
      theme toggle's interaction style. */
   body.theme-classic #adminLockBtn,
-  body.theme-classic #settingsMenuBtn {
+  body.theme-classic #settingsMenuBtn,
+  body.theme-classic #searchNeopetBtn {
     color: #000000 !important;
     border-color: #000000 !important;
     background: rgba(255,255,255,0.45);
   }
   body.theme-classic #adminLockBtn:hover,
-  body.theme-classic #settingsMenuBtn:hover {
+  body.theme-classic #settingsMenuBtn:hover,
+  body.theme-classic #searchNeopetBtn:hover {
     background: rgba(0,0,0,0.12) !important;
     color: #000000 !important;
     border-color: #000000 !important;
   }
   body.theme-classic #adminLockBtn:active,
-  body.theme-classic #settingsMenuBtn:active {
+  body.theme-classic #settingsMenuBtn:active,
+  body.theme-classic #searchNeopetBtn:active {
     background: rgba(0,0,0,0.2) !important;
   }
 
@@ -287,12 +296,14 @@
   body.theme-classic #themeToggle,
   body.theme-classic #adminLockBtn,
   body.theme-classic #settingsMenuBtn,
+  body.theme-classic #searchNeopetBtn,
   body.theme-classic #mainHeader #exportBtn,
   body.theme-classic #mainHeader label.restore-backup-label {
     height: 34px !important;
   }
   body.theme-classic #adminLockBtn,
-  body.theme-classic #settingsMenuBtn {
+  body.theme-classic #settingsMenuBtn,
+  body.theme-classic #searchNeopetBtn {
     width: 34px !important;
   }
   body.theme-classic .theme-toggle-btn,
@@ -323,7 +334,10 @@
   body.theme-classic #tagsModalDoneBtn,
   body.theme-classic #appConfirmOkBtn,
   body.theme-classic #appConfirmCancelBtn,
-  body.theme-classic #customizeDrawerCloseBottomBtn {
+  body.theme-classic #customizeDrawerCloseBottomBtn,
+  body.theme-classic #stackEditSaveBtn,
+  body.theme-classic #stackEditCancelBtn,
+  body.theme-classic #wishlistItemDoneBtn {
     padding-top: 0.375rem !important;
     padding-bottom: 0.375rem !important;
     padding-left: 0.875rem !important;
@@ -358,13 +372,29 @@
   /* "Select render" popover label: 1px smaller than the default theme's 11px */
   body.theme-classic .swap-popover-label { font-size: 10px !important; }
   body.theme-classic #petRosterShell { background-color: rgba(248,250,252,0.85) !important; border-color: #CBD5E1 !important; }
-  body.theme-classic .pet-card { background-color: #FFFFFF !important; border: 1px solid #E2E8F0 !important; }
-  body.theme-classic .pet-card:hover {
+  body.theme-classic .pet-card:not([data-cluster-src]) { background-color: #FFFFFF !important; border: 1px solid #E2E8F0 !important; }
+  body.theme-classic .pet-card:not([data-cluster-src]):hover {
     box-shadow: 0 4px 12px rgba(0,0,0,0.10) !important;
     transform: none !important;
     border-color: #1E293B !important; /* slate-800: clear, dark hover feedback instead of the faint gray before */
     transition: border-color 150ms ease, box-shadow 150ms ease !important;
   }
+  /* Stacked (multi-candidate) cards: the outer [data-cluster-src] box is just an
+     invisible positioning wrapper for the offset "stack" layers behind it — the
+     visible card is the inner .cluster-card-face. Giving the wrapper its
+     own background/border (like a normal .pet-card) on top of the face's own
+     border used to paint two overlapping borders, and since the face lifts on
+     hover (.card-hover) while the wrapper stayed put, part of the wrapper's
+     border poked out from behind it. Styling the face directly keeps a single,
+     clean border that moves and highlights as one piece. */
+  body.theme-classic [data-cluster-src] .cluster-card-face { background-color: #FFFFFF !important; border: 1px solid #E2E8F0 !important; }
+  body.theme-classic [data-cluster-src]:hover .cluster-card-face {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.10) !important;
+    transform: none !important;
+    border-color: #1E293B !important;
+    transition: border-color 150ms ease, box-shadow 150ms ease !important;
+  }
+  body.theme-classic .cluster-popover { border: 1px solid #E2E8F0 !important; }
 
   /* Toast notifications: significantly more compact vertical profile in Theme
      2, matching the compact pill/button aesthetic used everywhere else in
@@ -440,6 +470,32 @@
   body.theme-classic .border-t-teal,
   body.theme-classic .hover\:border-teal:hover { border-color: #000000 !important; }
   body.theme-classic .ring-teal { --tw-ring-color: #111827 !important; }
+  /* The active/selected state specifically (image deck thumbnail, the
+     MAIN look in the pet modal, the bulk-edit stack picker, and the
+     "choose a look to add" picker) needs to stay visible even against a
+     dark thumbnail background, where the classic theme's black selection
+     ring above would nearly disappear. These are more specific than the
+     blanket rules above, so they win for just these spots without touching
+     the black hover/border styling used everywhere else in this theme. */
+  body.theme-classic .deck-thumb.ring-teal { --tw-ring-color: #FFCE00 !important; }
+  body.theme-classic #modalLooksRow img.border-teal { border-color: #FFCE00 !important; }
+  body.theme-classic #modalLooksRow img.ring-teal { --tw-ring-color: #FFCE00 !important; }
+  body.theme-classic #stackEditDeckPicker img.border-teal,
+  body.theme-classic #stackEditDeckPicker img.hover\:border-teal:hover { border-color: #FFCE00 !important; }
+  body.theme-classic #stackEditDeckPicker img.ring-teal { --tw-ring-color: #FFCE00 !important; }
+  body.theme-classic #modalDeckPicker img.border-teal,
+  body.theme-classic #modalDeckPicker img.hover\:border-teal:hover { border-color: #FFCE00 !important; }
+  body.theme-classic #modalDeckPicker img.ring-teal { --tw-ring-color: #FFCE00 !important; }
+  /* Name Bank: a couple of teal accents here use Tailwind variants
+     (group-hover, hover:bg-teal) the blanket sweep above doesn't reach,
+     since it only rewrites the plain, non-variant class names. Scoped
+     narrowly to this section rather than adding a blanket fix for every
+     such variant site-wide. */
+  body.theme-classic #nameBankSection .group:hover .group-hover\:text-tealdark { color: #111827 !important; }
+  body.theme-classic #nameBankSection .hover\:bg-teal:hover { background-color: #111827 !important; }
+  /* A touch tighter than Theme 1 — matches the denser, more compact feel
+     this theme already uses for buttons and tags elsewhere. */
+  body.theme-classic .name-bank-card { padding: 10px 12px !important; gap: 0.3rem !important; }
   body.theme-classic .accent-teal { accent-color: #111827 !important; }
   body.theme-classic .hover\:decoration-teal:hover { text-decoration-color: #111827 !important; }
   body.theme-classic .bg-sage,
@@ -449,6 +505,13 @@
   body.theme-classic .bg-sage\/60 { background-color: rgba(241,245,249,0.6) !important; }
   body.theme-classic .border-sage { border-color: #E2E8F0 !important; }
   body.theme-classic .border-sagedeep { border-color: #CBD5E1 !important; }
+  /* Neopets-lookup shortcut buttons in the pet modal: a black outline
+     (rather than the soft gray border-sagedeep normally gets swept to)
+     matches this theme's crisper, higher-contrast aesthetic. Theme 1 gets
+     a touch larger text instead — its base size otherwise reads slightly
+     small next to the rest of the modal's labels. */
+  body.theme-classic .neo-lookup-btn { border-color: #000000 !important; }
+  body:not(.theme-classic) .neo-lookup-btn { font-size: 11px !important; }
   body.theme-classic input:focus,
   body.theme-classic textarea:focus,
   body.theme-classic [contenteditable]:focus { outline-color: #111827 !important; }
@@ -487,8 +550,14 @@
   body.theme-classic #petDetailView .border-t-teal { border-top-color: #15B8B0 !important; }
   body.theme-classic #petDetailView .hover\:border-teal:hover,
   body.theme-classic #customizeDrawer .hover\:border-teal:hover,
-  body.theme-classic #colorPickerPopover .hover\:border-teal:hover,
-  body.theme-classic #mediaSwitchPopover .hover\:border-teal:hover { border-color: #15B8B0 !important; }
+  body.theme-classic #colorPickerPopover .hover\:border-teal:hover { border-color: #15B8B0 !important; }
+  /* The render-switch popover's hover/selected states are the one exception
+     to this isolation block's "always stays Theme 1 teal" rule: its
+     thumbnails commonly sit on dark render backgrounds, where teal reads
+     poorly, so — same reasoning as the deck/looks-row overrides further
+     up — classic theme gets yellow here instead for contrast. */
+  body.theme-classic #mediaSwitchPopover .hover\:border-teal:hover { border-color: #FFCE00 !important; }
+  body.theme-classic #mediaSwitchPopover .media-switch-thumb-active { --tw-ring-color: #FFCE00 !important; }
   body.theme-classic #petDetailView .hover\:text-tealdark:hover,
   body.theme-classic #colorPickerPopover .hover\:text-tealdark:hover { color: #0E8F89 !important; }
   body.theme-classic #petDetailView .hover\:bg-sage:hover,
@@ -547,6 +616,9 @@
       <h1 id="appTitle" class="text-2xl sm:text-[28px] font-bold tracking-tight text-forest">neopets showcase</h1>
     </div>
     <div class="flex items-center flex-wrap sm:flex-nowrap shrink-0 gap-2">
+      <button id="searchNeopetBtn" type="button" title="Search for a Neopet" class="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-full border border-[#D6EEE6] text-[#6E8880] hover:border-teal hover:text-tealdark transition">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      </button>
       <div id="themeToggle" class="h-10 inline-flex items-center rounded-full border border-[#D6EEE6] p-0.5">
         <button type="button" data-theme-choice="slate" class="theme-toggle-btn h-full text-xs font-semibold px-3 rounded-full transition-colors whitespace-nowrap">Modern Slate</button>
         <button type="button" data-theme-choice="classic" class="theme-toggle-btn h-full text-xs font-semibold px-3 rounded-full transition-colors whitespace-nowrap">Classic Neopets</button>
@@ -588,7 +660,7 @@
       <!-- search -->
       <div class="relative shrink-0">
         <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-[#8AA39A]" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input id="searchInput" type="text" placeholder="Search..."
+        <input id="searchInput" type="text" placeholder="Search your names"
           class="transition-all duration-300 w-[180px] focus:w-[300px] pl-8 pr-3 py-2 rounded-xl border border-[#E2E8E4] text-sm bg-white text-forest placeholder:text-[#8AA39A]">
       </div>
 
@@ -629,11 +701,9 @@
       </div>
     </div>
 
-    <div id="imageFilterBanner" class="hidden items-center justify-between gap-3 bg-sage border border-sagedeep rounded-xl px-4 py-2 mt-2.5">
-      <div class="flex items-center gap-3 min-w-0">
-        <img id="imageFilterThumb" class="w-8 h-8 rounded-lg object-cover border border-sagedeep shrink-0" src="" alt="">
-        <span class="text-sm font-semibold text-forest truncate">Filtering by image</span>
-      </div>
+    <div id="imageFilterBanner" class="hidden items-center gap-2 bg-sage border border-sagedeep rounded-xl px-4 py-2 mt-2.5">
+      <img id="imageFilterThumb" class="w-8 h-8 rounded-lg object-cover border border-sagedeep shrink-0" src="" alt="">
+      <span class="text-sm font-semibold text-forest truncate">Filtering by image</span>
       <button id="showAllImagesBtn" aria-label="Clear image filter" class="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-white border border-sagedeep text-forest hover:text-tealdark hover:border-teal transition">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
@@ -648,7 +718,7 @@
   <aside class="lg:sticky lg:top-[130px] w-full lg:h-[calc(100vh-150px)]">
     <div id="imageDeckPanel" class="bg-white rounded-2xl border border-[#E2E8E4] shadow-card p-5 h-full flex flex-col gap-3 overflow-hidden">
       <div class="flex items-center justify-between shrink-0">
-        <h2 id="imageDeckTitle" class="font-extrabold text-forest text-base">Image deck</h2>
+        <h2 id="imageDeckTitle" class="font-extrabold text-forest text-base">Your pet looks</h2>
         <span id="deckCount" class="text-xs font-bold text-tealdark bg-sage px-2 py-0.5 rounded-full">0</span>
       </div>
 
@@ -659,21 +729,21 @@
         <p class="text-xs text-[#6E8880] mt-0.5">or drag a file here</p>
       </div>
 
-      <p id="deckDragHint" class="text-[11px] text-[#8AA39A] leading-relaxed shrink-0">Drag a thumbnail onto any pet card to assign it.</p>
+      <p id="deckDragHint" class="text-[11px] text-[#8AA39A] leading-relaxed shrink-0">Drag a thumbnail onto any pet card or Name Bank entry to assign it.</p>
 
       <!-- thumbnails: independently scrollable -->
       <div class="flex flex-col min-h-0 flex-1">
-        <h3 class="text-xs font-bold tracking-wide text-[#6E8880] mb-2 shrink-0">Filter by image</h3>
+        <h3 id="imageDeckSubhead" class="text-xs font-bold tracking-wide text-[#6E8880] mb-2 shrink-0">Filter by image</h3>
         <div id="deckEmpty" class="text-xs text-[#8AA39A] text-center py-4 border border-dashed border-[#E2E8E4] rounded-xl">
           No staged images yet.
         </div>
-        <div id="deckGrid" class="deck-scroll grid grid-cols-3 gap-3 w-full overflow-y-auto flex-1 min-h-0 content-start"></div>
+        <div id="deckGrid" class="deck-scroll grid grid-cols-3 gap-3 w-full overflow-y-auto flex-1 min-h-0 content-start p-1 -m-1"></div>
       </div>
     </div>
   </aside>
 
   <!-- RIGHT: MAIN CONTENT -->
-  <main class="min-w-0">
+  <main id="petsMain" class="min-w-0">
     <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
       <h2 class="text-lg font-extrabold text-forest">Pet names <span id="petCount" class="text-[#8AA39A] font-semibold"></span></h2>
       <div class="flex items-center gap-2">
@@ -692,11 +762,51 @@
     </div>
 
     <div id="gridEmpty" class="hidden text-center py-20 border border-dashed border-[#E2E8E4] rounded-2xl">
-      <p class="text-forest font-bold">No pet names here yet</p>
-      <p class="text-sm text-[#8AA39A] mt-1">Try adjusting your filters, or add a new pet name to get started.</p>
+      <p id="gridEmptyTitle" class="text-forest font-bold">No pet names here yet</p>
+      <p id="gridEmptyBody" class="text-sm text-[#8AA39A] mt-1">Try adjusting your filters, or add a new pet name to get started.</p>
     </div>
 
     <div id="petGrid" class="flex flex-wrap gap-4"></div>
+
+    <!-- NAME BANK: names not yet paired with a picture — kept out of the
+         main grid above (which is reserved for pets with an actual look)
+         and out of Preview entirely, since there's nothing to showcase yet.
+         Collapsed by default; stays visible while unlocked even when empty
+         so it's still a discoverable, always-available drop target. -->
+    <div id="nameBankSection" class="hidden mt-8 pt-5 border-t border-dashed border-[#E2E8E4]">
+      <button id="nameBankToggle" type="button" class="w-full flex items-center gap-2 text-left group rounded-lg -mx-2 px-2 py-1.5 hover:bg-sage transition">
+        <svg id="nameBankChevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-[#8AA39A] shrink-0 transition-transform"><path d="M6 9l6 6 6-6"/></svg>
+        <h2 class="text-base font-extrabold text-forest group-hover:text-tealdark transition">Name bank <span id="nameBankCount" class="text-[#8AA39A] font-semibold"></span></h2>
+      </button>
+      <div id="nameBankBody" class="hidden mt-3">
+        <p class="text-xs text-[#6E8880] mb-3">Names you're holding onto without a picture yet.</p>
+        <div id="nameBankEmpty" class="hidden text-center py-8 text-sm text-[#8AA39A] border border-dashed border-[#E2E8E4] rounded-xl">
+          Dismissed or nameless candidates you want to keep track of will show up here.
+        </div>
+        <div id="nameBankList" class="hidden grid-cols-3 gap-2"></div>
+      </div>
+    </div>
+
+    <!-- PET WISHLIST: images of un-customized pets/species you're thinking
+         about — not a "look" for any name yet, so kept fully separate from
+         Looks (which is only ever finished/candidate look assets ready to
+         drag onto a name). Same collapsed-by-default, stays-visible-while-
+         unlocked pattern as the Name Bank above. No dedicated paste zone —
+         Cmd+V anywhere on this tab already offers "Pet wishlist" as a
+         destination via the paste chooser modal. -->
+    <div id="wishlistSection" class="hidden mt-8 pt-5 border-t border-dashed border-[#E2E8E4]">
+      <button id="wishlistToggle" type="button" class="w-full flex items-center gap-2 text-left group rounded-lg -mx-2 px-2 py-1.5 hover:bg-sage transition">
+        <svg id="wishlistChevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-[#8AA39A] shrink-0 transition-transform"><path d="M6 9l6 6 6-6"/></svg>
+        <h2 class="text-base font-extrabold text-forest group-hover:text-tealdark transition">Pet wishlist <span id="wishlistCount" class="text-[#8AA39A] font-semibold"></span></h2>
+      </button>
+      <div id="wishlistBody" class="hidden mt-3">
+        <p class="text-xs text-[#6E8880] mb-3">Uncustomized pets or pet token wishes. Not tied to a name yet.</p>
+        <div id="wishlistEmpty" class="hidden text-center py-8 text-sm text-[#8AA39A] border border-dashed border-[#E2E8E4] rounded-xl">
+          Nothing here yet — paste in a reference image (⌘V) to get started.
+        </div>
+        <div id="wishlistGrid" class="hidden flex flex-wrap gap-3"></div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -869,7 +979,7 @@
 
 <!-- ADD/EDIT PET MODAL -->
 <div id="petModal" class="hidden fixed inset-0 z-50 modal-backdrop items-center justify-center p-4">
-  <div class="modal-card bg-white rounded-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto shadow-2xl">
+  <div id="petModalCard" class="modal-card deck-scroll bg-white rounded-2xl w-full max-w-[1004px] max-h-[92vh] overflow-y-auto shadow-2xl">
     <div class="flex items-center justify-between px-6 py-4 border-b border-[#E2E8E4] sticky top-0 bg-white rounded-t-2xl z-10">
       <h3 id="modalTitle" class="font-extrabold text-lg text-forest">Add pet name</h3>
       <button id="modalCloseX" class="text-[#8AA39A] hover:text-forest p-1">
@@ -879,21 +989,30 @@
 
     <div class="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-6">
       <!-- LEFT COLUMN: image stage & staging picker -->
-      <div class="space-y-2.5">
-        <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] block">Render preview</label>
+      <div id="modalLeftColumn" class="space-y-2.5">
+        <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] block">Main image</label>
         <div id="modalStage" class="relative group w-full aspect-square rounded-xl bg-sage border border-sagedeep flex items-center justify-center overflow-hidden">
           <img id="modalStageImg" class="hidden w-full h-full object-contain" src="" alt="">
-          <svg id="modalStagePlaceholder" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9DB8AF" stroke-width="1.5"><path d="M12 21C12 21 4 14.5 4 9.5C4 6.5 6.2 4.5 9 4.5C10.5 4.5 11.5 5.3 12 6C12.5 5.3 13.5 4.5 15 4.5C17.8 4.5 20 6.5 20 9.5C20 14.5 12 21 12 21Z"/></svg>
+          <div id="modalStagePlaceholder" class="hidden flex-col items-center gap-2 text-center px-6">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9DB8AF" stroke-width="1.5"><path d="M12 21C12 21 4 14.5 4 9.5C4 6.5 6.2 4.5 9 4.5C10.5 4.5 11.5 5.3 12 6C12.5 5.3 13.5 4.5 15 4.5C17.8 4.5 20 6.5 20 9.5C20 14.5 12 21 12 21Z"/></svg>
+          </div>
           <button id="modalRemoveImageBtn" aria-label="Remove image" class="hidden absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-forest/50 hover:bg-forest/85 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all duration-150 backdrop-blur-sm">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>
 
         <div>
-          <p class="text-xs text-[#6E8880] text-left">Click an image to replace the current one.</p>
+          <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Looks</label>
+          <div class="overflow-x-auto p-1 -m-1">
+            <div id="modalLooksRow" class="flex items-center gap-2 pb-1"></div>
+          </div>
         </div>
-        <div class="overflow-x-auto">
-          <div id="modalDeckPicker" class="flex items-center gap-2 pb-1"></div>
+
+        <div id="modalDeckPickerSection" class="hidden">
+          <p class="text-xs text-[#6E8880] text-left mb-1.5">Choose a look to add to this pet:</p>
+          <div class="overflow-x-auto p-1 -m-1">
+            <div id="modalDeckPicker" class="flex items-center gap-2 pb-1"></div>
+          </div>
         </div>
       </div>
 
@@ -901,39 +1020,61 @@
       <div class="space-y-4">
         <div>
           <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Pet name</label>
-          <input id="modalNameInput" type="text" placeholder="e.g. Moonveil Fox"
-            class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A]">
+          <textarea id="modalNameInput" rows="1" placeholder="e.g. Moonveil Fox — or paste a list, one name per line, to add several at once"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] resize-none leading-snug"></textarea>
+          <p id="modalNameCountHint" class="hidden text-xs font-semibold text-teal mt-1"></p>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
+        <div id="modalStatusRow" class="grid grid-cols-2 gap-3">
+          <div id="modalStatusFieldWrap">
             <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Status</label>
-            <select id="modalStatusSelect" class="w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white text-forest">
-              <option value="">None</option>
-            </select>
+            <div class="relative">
+              <select id="modalStatusSelect" class="appearance-none w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white text-forest">
+                <option value="">None</option>
+              </select>
+              <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#6E8880]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
           </div>
-          <div>
+          <div id="modalAccountFieldWrap">
             <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Account</label>
-            <select id="modalAccountSelect" class="w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white text-forest">
-              <option value="">None</option>
-            </select>
+            <div class="relative">
+              <select id="modalAccountSelect" class="appearance-none w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white text-forest">
+                <option value="">None</option>
+              </select>
+              <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#6E8880]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
           </div>
+          <!-- Only in edit mode: this swaps in for Account whenever status is
+               anything other than blank/"Own" — an editing-mode convenience,
+               not something a not-yet-saved new pet has anywhere to attach
+               to (see updateModalStatusDependentFields). -->
+          <div id="modalOwnerFieldWrap" class="hidden">
+            <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block whitespace-nowrap">Neopets owner <span class="normal-case font-semibold text-[#8AA39A]">(optional)</span></label>
+            <input id="modalOwnerInput" type="text" placeholder="Current owner"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A]">
+          </div>
+        </div>
+
+        <div id="modalOwnerCtaRow" class="hidden grid grid-cols-3 gap-1.5 mb-8">
+          <button type="button" id="modalViewPetBtn" title="Open this pet's Neopets lookup in a new tab" class="neo-lookup-btn inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View Neopet</button>
+          <button type="button" id="modalViewPetpageBtn" title="Open this pet's petpage in a new tab" class="neo-lookup-btn inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View petpage</button>
+          <button type="button" id="modalViewOwnerBtn" title="Open (or set) this pet's owner userlookup in a new tab" class="neo-lookup-btn inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View owner</button>
         </div>
 
         <div class="flex flex-col">
           <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Notes</label>
-          <textarea id="modalNotesInput" rows="6" placeholder="Add any notes, keywords, or context..."
-            class="w-full flex-1 px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] resize-none min-h-[130px]"></textarea>
+          <textarea id="modalNotesInput" rows="2" placeholder="Add any notes, keywords, or context..."
+            class="deck-scroll w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] resize-none min-h-[52px]"></textarea>
         </div>
 
-        <div class="space-y-2">
+        <div id="modalCheckboxesWrap" class="space-y-2">
           <label class="flex items-center gap-2 cursor-pointer select-none">
             <input id="modalMPCheckbox" type="checkbox" class="w-4 h-4 rounded border-[#D6EEE6] text-teal accent-teal cursor-pointer">
-            <span class="text-sm font-semibold text-forest">Has morphing potion</span>
+            <span class="text-[11px] font-normal text-forest">Has morphing potion</span>
           </label>
           <label class="flex items-center gap-2 cursor-pointer select-none">
             <input id="modalCompletedCheckbox" type="checkbox" class="w-4 h-4 rounded border-[#D6EEE6] text-teal accent-teal cursor-pointer">
-            <span class="text-sm font-semibold text-forest">Completed on Neopets</span>
+            <span class="text-[11px] font-normal text-forest">Completed on Neopets</span>
           </label>
         </div>
       </div>
@@ -945,6 +1086,152 @@
         <button id="modalCancelBtn" class="text-sm font-semibold text-[#6E8880] hover:text-forest px-4 py-2.5 rounded-full hover:bg-sage transition">Cancel</button>
         <button id="modalSaveBtn" class="text-sm font-bold text-white bg-forest hover:bg-forestlight px-5 py-2.5 rounded-full transition">Save changes</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- PASTE DESTINATION CHOOSER: shown for an ambiguous clipboard paste — one
+     that isn't happening inside the pet modal (which always means "this
+     pet's looks") and isn't landing in either dedicated paste zone (which
+     are each already unambiguous). Everywhere else, a paste could
+     reasonably mean either bucket, so this asks once instead of guessing. -->
+<div id="pasteChooserModal" class="hidden fixed inset-0 z-[100] modal-backdrop items-center justify-center p-4">
+  <div class="modal-card bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
+    <h3 class="font-extrabold text-lg text-forest mb-4">Add this image to...</h3>
+    <div class="w-full max-w-[400px] aspect-square mx-auto rounded-xl overflow-hidden bg-sage border border-sagedeep mb-5">
+      <img id="pasteChooserPreview" class="w-full h-full object-contain" src="" alt="Pasted image preview">
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <button id="pasteChooserLooksBtn" type="button" class="text-sm font-bold text-white bg-forest hover:bg-forestlight px-4 py-2.5 rounded-full transition">Add to Looks</button>
+      <button id="pasteChooserWishlistBtn" type="button" class="text-sm font-bold text-tealdark border border-sagedeep hover:border-teal hover:bg-sage px-4 py-2.5 rounded-full transition">Add to Pet wishlist</button>
+    </div>
+    <button id="pasteChooserCancelBtn" type="button" class="mt-3 w-full text-sm font-semibold text-[#6E8880] hover:text-forest px-4 py-2 rounded-full hover:bg-sage transition">Cancel</button>
+  </div>
+</div>
+
+<!-- SEARCH FOR NEOPET: look up a single name on Neopets without adding it
+     to the tracker first — for "is this name even taken, and by whom"
+     questions that don't need a permanent Name Bank entry unless you decide
+     they do. -->
+<div id="searchNeopetModal" class="hidden fixed inset-0 z-[100] modal-backdrop items-center justify-center p-4">
+  <div class="modal-card bg-white rounded-2xl w-full max-w-md shadow-2xl">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-[#E2E8E4]">
+      <h3 class="font-extrabold text-lg text-forest">Search for a Neopet</h3>
+      <button id="searchNeopetCloseX" class="text-[#8AA39A] hover:text-forest p-1">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="px-6 py-5 space-y-4">
+      <div>
+        <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Pet name</label>
+        <input id="searchNeopetNameInput" type="text" placeholder="e.g. Moonveil Fox"
+          class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A]">
+      </div>
+      <div>
+        <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Neopets owner <span class="normal-case font-semibold text-[#8AA39A]">(optional)</span></label>
+        <input id="searchNeopetOwnerInput" type="text" placeholder="Username"
+          class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] transition-colors">
+        <p id="searchNeopetOwnerHint" class="hidden text-[11px] font-semibold text-rose-600 mt-1">Please enter an owner to view!</p>
+      </div>
+      <div id="searchNeopetCtaRow" class="hidden grid grid-cols-3 gap-1.5">
+        <button type="button" id="searchNeopetViewPetBtn" title="Open this pet's Neopets lookup in a new tab" class="neo-lookup-btn inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View Neopet</button>
+        <button type="button" id="searchNeopetViewPetpageBtn" title="Open this pet's petpage in a new tab" class="neo-lookup-btn inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View petpage</button>
+        <button type="button" id="searchNeopetViewOwnerBtn" title="Open this name's owner userlookup in a new tab" class="neo-lookup-btn inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View owner</button>
+      </div>
+
+      <div class="pt-3 border-t border-dashed border-[#E2E8E4]">
+        <button type="button" id="searchNeopetToggleBankBtn" class="text-sm font-semibold text-tealdark hover:text-forest inline-flex items-center gap-1">
+          <svg id="searchNeopetToggleBankIcon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="transition-transform"><path d="M12 5v14M5 12h14"/></svg>
+          <span id="searchNeopetToggleBankLabel">Add name</span>
+        </button>
+        <div id="searchNeopetBankFields" class="hidden mt-3 space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Status</label>
+              <div class="relative">
+                <select id="searchNeopetStatusSelect" class="appearance-none w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white text-forest">
+                  <option value="">None</option>
+                </select>
+                <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#6E8880]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+            </div>
+            <div>
+              <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Account</label>
+              <div class="relative">
+                <select id="searchNeopetAccountSelect" class="appearance-none w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white text-forest">
+                  <option value="">None</option>
+                </select>
+                <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#6E8880]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Notes</label>
+            <textarea id="searchNeopetNotesInput" rows="2" placeholder="Add any notes, keywords, or context..."
+              class="deck-scroll w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] resize-none min-h-[52px]"></textarea>
+          </div>
+          <button type="button" id="searchNeopetSaveBtn" class="w-full text-sm font-bold text-white bg-forest hover:bg-forestlight px-4 py-2.5 rounded-full transition">Save and add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- WISHLIST ITEM: launched by clicking a wishlist card — the note field
+     and delete action live here instead of cluttering the card itself, so
+     the grid stays a clean row of images. -->
+<div id="wishlistItemModal" class="hidden fixed inset-0 z-[100] modal-backdrop items-center justify-center p-4">
+  <div class="modal-card bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-[#E2E8E4]">
+      <h3 class="font-extrabold text-lg text-forest">Wishlist pet</h3>
+      <button id="wishlistItemCloseX" class="text-[#8AA39A] hover:text-forest p-1">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="px-6 py-5 space-y-4">
+      <div class="w-full aspect-square rounded-xl overflow-hidden bg-sage border border-sagedeep">
+        <img id="wishlistItemImg" class="w-full h-full object-cover" src="" alt="Wishlist reference image">
+      </div>
+      <div>
+        <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Note</label>
+        <input id="wishlistItemNoteInput" type="text" placeholder="Species, color, an idea..."
+          class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A]">
+      </div>
+    </div>
+    <div class="flex items-center justify-between px-6 py-4 border-t border-[#E2E8E4]">
+      <button id="wishlistItemDeleteBtn" type="button" class="text-sm font-semibold text-rose-600 hover:text-rose-700">Delete</button>
+      <button id="wishlistItemDoneBtn" type="button" class="text-sm font-bold text-white bg-forest hover:bg-forestlight px-5 py-2.5 rounded-full transition">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- STACK BULK-EDIT MODAL: change the shared image for every candidate name
+     in a stack at once, without first picking a winner. Deliberately
+     minimal — image is the only field that makes sense to apply identically
+     across a whole stack; status/account/names/notes stay per-pet, edited
+     from the regular pet modal. -->
+<div id="stackEditModal" class="hidden fixed inset-0 z-50 modal-backdrop items-center justify-center p-4">
+  <div class="modal-card bg-white rounded-2xl w-full max-w-md shadow-2xl">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-[#E2E8E4]">
+      <h3 id="stackEditTitle" class="font-extrabold text-lg text-forest">Edit candidates</h3>
+      <button id="stackEditCloseX" class="text-[#8AA39A] hover:text-forest p-1">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="px-6 py-5 space-y-4">
+      <p id="stackEditSubtitle" class="text-xs"></p>
+
+      <div>
+        <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Image</label>
+        <p class="text-xs text-[#6E8880] mb-1.5">Choose a new image to move every candidate onto it.</p>
+        <div id="stackEditDeckPicker" class="deck-scroll grid grid-cols-4 gap-2 max-h-[420px] overflow-y-auto p-1 -m-1"></div>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-end gap-2 px-6 py-4 border-t border-[#E2E8E4]">
+      <button id="stackEditCancelBtn" class="text-sm font-semibold text-[#6E8880] hover:text-forest px-4 py-2.5 rounded-full hover:bg-sage transition">Cancel</button>
+      <button id="stackEditSaveBtn" class="text-sm font-bold text-white bg-forest hover:bg-forestlight px-5 py-2.5 rounded-full transition">Save changes</button>
     </div>
   </div>
 </div>
@@ -1006,7 +1293,7 @@
 <!-- SAVE CONFIRMATION TOAST -->
 <div id="saveToast" class="hidden fixed bottom-6 right-6 z-50 bg-forest text-white rounded-full pl-4 pr-5 py-2.5 shadow-2xl items-center gap-2 opacity-0 transition-opacity duration-200">
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#15B8B0" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
-  <span class="text-sm font-semibold">Changes saved</span>
+  <span id="saveToastText" class="text-sm font-semibold">Changes saved</span>
 </div>
 
 <!-- GENERIC APP CONFIRM / ALERT / PROMPT MODAL (replaces window.confirm/alert/prompt, which fail silently in-sandbox) -->
@@ -1213,6 +1500,7 @@
 
   const STORAGE_PETS = 'neo_tracker_pets_v2';
   const STORAGE_IMAGES = 'neo_tracker_images_v1';
+  const STORAGE_WISHLIST_IMAGES = 'neo_wishlist_images_v1';
   const STORAGE_ACCOUNTS = 'neo_tracker_accounts_v1';
   const STORAGE_HIDDEN_ACCOUNTS = 'neo_tracker_hidden_accounts_v1'; // accounts hidden from the Preview "Pets on [Account]" dropdown
   const STORAGE_STATUSES = 'neo_tracker_statuses_v1';
@@ -1234,10 +1522,25 @@
   let STATUSES = loadJSON(STORAGE_STATUSES, [...DEFAULT_STATUSES]);
   let pets = migratePets(loadJSON(STORAGE_PETS, loadLegacyPets()));
   let stagedImages = loadJSON(STORAGE_IMAGES, []);
+  // Un-customized reference pics — species/color ideas with no name or
+  // finished look attached yet. Kept in its own list (not just a flag on
+  // stagedImages) so it never gets mixed into the fast, small-thumbnail
+  // Looks deck, which is built for a different job: quickly dragging a
+  // finished asset onto a name.
+  let wishlistImages = loadJSON(STORAGE_WISHLIST_IMAGES, []); // [{id, src, note, addedAt}]
   let filters = { search: '', accounts: new Set(), statuses: new Set(), imageSrc: null, mp: false, showCompleted: false };
+  // Which visual clusters (keyed by the shared imageSrc) are currently
+  // expanded in the grid. Transient UI state only — never persisted.
+  let expandedClusters = new Set();
   let sortMode = 'newest';
   let editingId = null;
   let pendingImageSrc = null;
+  // Other candidate images ("looks") for the pet currently open in the
+  // modal, in STABLE display order — this never gets reshuffled just
+  // because a different one becomes main (see modalLooksRow's click
+  // handler); it only changes when a look is actually added or removed.
+  // Lives only while the modal is open.
+  let pendingLooksOrder = [];
   // Ids of pets created/edited locally since page load that haven't been
   // confirmed synced to Supabase yet. bootstrapFromSupabase() fires once at
   // startup and can resolve *after* the user has already added/edited a pet
@@ -1298,18 +1601,40 @@
     sbSyncPetsDebounced();
   }
   function saveImages() { safeLocalStorageSet(STORAGE_IMAGES, JSON.stringify(stagedImages)); }
+  function saveWishlistImages() { safeLocalStorageSet(STORAGE_WISHLIST_IMAGES, JSON.stringify(wishlistImages)); }
   function saveTags() {
-    localStorage.setItem(STORAGE_ACCOUNTS, JSON.stringify(ACCOUNTS));
-    localStorage.setItem(STORAGE_STATUSES, JSON.stringify(STATUSES));
+    safeLocalStorageSet(STORAGE_ACCOUNTS, JSON.stringify(ACCOUNTS));
+    safeLocalStorageSet(STORAGE_STATUSES, JSON.stringify(STATUSES));
     sbSaveSetting('accounts', ACCOUNTS);
     sbSaveSetting('statuses', STATUSES);
   }
   function saveHiddenAccounts() {
     const arr = [...HIDDEN_ACCOUNTS];
-    localStorage.setItem(STORAGE_HIDDEN_ACCOUNTS, JSON.stringify(arr));
+    safeLocalStorageSet(STORAGE_HIDDEN_ACCOUNTS, JSON.stringify(arr));
     sbSaveSetting('hidden_accounts', arr);
   }
   function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  // ---------- Neopets lookup links (Name Bank shortcuts) ----------
+  // A random 1-99 query value, and a random choice between "place" and "x"
+  // as the pet-lookup param name — cosmetic variation on the outgoing link
+  // per user request, not anything the destination page depends on.
+  function randomNeoLookupNum() { return Math.floor(Math.random() * 99) + 1; }
+  function buildPetLookupUrl(name) {
+    const param = Math.random() < 0.5 ? 'place' : 'x';
+    return `https://www.neopets.com/petlookup.phtml?${param}=${randomNeoLookupNum()}&pet=${encodeURIComponent(name)}`;
+  }
+  function buildOwnerLookupUrl(owner) {
+    return `https://www.neopets.com/userlookup.phtml?user=${encodeURIComponent(owner)}&x=${randomNeoLookupNum()}`;
+  }
+  // A browser won't let a page open a view-source: link (blocked for
+  // security reasons regardless of how it's triggered), so this goes to the
+  // plain petpage itself rather than its source — as close as a hyperlink
+  // can get. The owner's username used to still be visible in that page's
+  // rendered banner/referral link even without viewing raw source.
+  function buildPetPageUrl(name) {
+    return `https://www.neopets.com/~${encodeURIComponent(name)}`;
+  }
 
   // ---------- per-pet video storage (IndexedDB, keyed by pet name) ----------
   // Videos are stored as Blobs in IndexedDB rather than base64 Data URLs in
@@ -1481,13 +1806,18 @@
   let appConfirmValidator = null; // optional async (value) => true | 'error message to show inline'
 
   function appConfirm(message, opts = {}) {
-    const { title = 'Are you sure?', okText = 'Confirm', alertOnly = false } = opts;
+    const { title = 'Are you sure?', okText = 'Confirm', alertOnly = false, html = false } = opts;
     appConfirmIsPrompt = false;
     appConfirmValidator = null;
     return new Promise((resolve) => {
       appConfirmResolver = resolve;
       appConfirmTitle.textContent = title;
-      appConfirmMessage.textContent = message;
+      // html=true lets a caller bold a specific word (e.g. a pet's name) for
+      // scannability. Callers are responsible for escaping any interpolated
+      // user data themselves (see confirmLookMergeIfNeeded for the pattern)
+      // since this path skips the automatic escaping that textContent gives
+      // every other appConfirm/appAlert call in the app.
+      if (html) { appConfirmMessage.innerHTML = message; } else { appConfirmMessage.textContent = message; }
       appConfirmMessage.classList.remove('hidden');
       appConfirmInput.classList.add('hidden');
       appConfirmError.classList.add('hidden');
@@ -1561,11 +1891,28 @@
     return (str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
   function migratePets(list) {
-    return list.map(p => {
+    let strippedImageCount = 0;
+    const result = list.map(p => {
       if (typeof p.imageSrc === 'undefined') {
         p.imageSrc = (Array.isArray(p.imageSrcs) && p.imageSrcs.length) ? p.imageSrcs[0] : null;
       }
       delete p.imageSrcs;
+      // A pet should never be carrying a raw base64 data: URL as its image
+      // by the time it reaches this migration step — that can only mean it
+      // was saved (locally or to the cloud) during a period when Supabase
+      // Storage uploads were failing, and each one can be several MB.
+      // Re-loading and re-persisting these on every single page load is
+      // exactly what was blowing the localStorage quota and crashing
+      // bootstrapFromSupabase before it could finish, which (left
+      // uncaught) permanently disabled all further cloud sync for the rest
+      // of the session. Strip them here, once, centrally — covering the
+      // initial local load, a restored backup, and the cloud merge alike —
+      // so the app can never be at the mercy of however much stale
+      // embedded-image cruft has already accumulated locally or remotely.
+      if (typeof p.imageSrc === 'string' && p.imageSrc.startsWith('data:')) {
+        p.imageSrc = null;
+        strippedImageCount++;
+      }
       if (typeof p.createdAt !== 'number') p.createdAt = Date.now();
       if (typeof p.hasMP !== 'boolean') p.hasMP = false;
       if (typeof p.completed !== 'boolean') p.completed = false;
@@ -1573,8 +1920,14 @@
       if (typeof p.species !== 'string') p.species = 'Species';
       if (typeof p.stagingStatus !== 'string') p.stagingStatus = 'active'; // 'active' | 'roster' — sticks to the pet even across account changes
       if (typeof p.selectedRenderIndex !== 'number') p.selectedRenderIndex = 0; // which image variant Preview shows for this name — survives active/roster moves
+      if (!Array.isArray(p.altImageSrcs)) p.altImageSrcs = []; // other candidate looks for this SAME pet, tried but not (yet) chosen as the main image
+      p.altImageSrcs = p.altImageSrcs.filter(src => typeof src === 'string' && src && !src.startsWith('data:')); // same raw-base64 guard as imageSrc above
       return p;
     });
+    if (strippedImageCount > 0) {
+      console.error(`Removed ${strippedImageCount} locally-embedded pet image(s) that were never uploaded to Supabase Storage — they were bloating storage and blocking cloud sync. Re-attach these pets' images once Storage uploads are working again.`);
+    }
+    return result;
   }
 
   // ---------- view tabs ----------
@@ -1753,6 +2106,7 @@
   const deckCount = document.getElementById('deckCount');
   const deckDragHint = document.getElementById('deckDragHint');
   const imageDeckTitle = document.getElementById('imageDeckTitle');
+  const imageDeckSubhead = document.getElementById('imageDeckSubhead');
 
   let deckScrollTimer = null;
   deckGrid.addEventListener('scroll', () => {
@@ -1761,10 +2115,22 @@
     deckScrollTimer = setTimeout(() => deckGrid.classList.remove('is-scrolling'), 600);
   });
 
+  // Same "invisible until hovered/scrolled" treatment for the Add/Edit Pet
+  // modal's own scrollbar — it was always visible before, which stood out
+  // next to every other scroll container in the app already using this.
+  const petModalCard = document.getElementById('petModalCard');
+  let petModalScrollTimer = null;
+  petModalCard.addEventListener('scroll', () => {
+    petModalCard.classList.add('is-scrolling');
+    clearTimeout(petModalScrollTimer);
+    petModalScrollTimer = setTimeout(() => petModalCard.classList.remove('is-scrolling'), 600);
+  });
+
   function renderDeck() {
     deckCount.textContent = stagedImages.length;
     deckEmpty.classList.toggle('hidden', stagedImages.length > 0);
-    if (imageDeckTitle) imageDeckTitle.textContent = isUnlocked ? 'Upload an image' : 'Image deck';
+    if (imageDeckTitle) imageDeckTitle.textContent = isUnlocked ? 'Upload an image' : 'Saved Looks';
+    if (imageDeckSubhead) imageDeckSubhead.textContent = isUnlocked ? 'Filter by pet look' : 'Filter by image';
     if (deckDragHint) {
       deckDragHint.textContent = isUnlocked ? 'Drag a thumbnail onto any pet card to assign it.' : '';
       deckDragHint.classList.toggle('hidden', !isUnlocked);
@@ -1826,18 +2192,47 @@
     renderGrid();
   }
 
+  // Every pet's current images, saved main plus alts, in one flat list —
+  // shared by the merge-check and by any flow that needs to know "does this
+  // pet already have a picture at all" without caring which slot it's in.
+  function petExistingImages(pet) {
+    return [pet.imageSrc, ...(Array.isArray(pet.altImageSrcs) ? pet.altImageSrcs : [])].filter(Boolean);
+  }
+
+  // Assigns a new main image to an already-saved pet (used by the direct
+  // drag-onto-card shortcut) the same non-destructive way the modal does:
+  // the old main image, if there was one, becomes a look instead of being
+  // discarded, and the new image is never left duplicated in its own alts
+  // list. Callers still own confirmImageMergeIfNeeded() and savePets()/sync.
+  function assignPetMainImage(pet, url) {
+    const alts = new Set(Array.isArray(pet.altImageSrcs) ? pet.altImageSrcs : []);
+    if (pet.imageSrc && pet.imageSrc !== url) alts.add(pet.imageSrc);
+    alts.delete(url);
+    pet.imageSrc = url;
+    pet.altImageSrcs = [...alts];
+  }
+
   function addStagedImage(src) {
     const img = { id: genId(), src, addedAt: Date.now() };
     stagedImages.unshift(img);
     saveImages();
     renderDeck();
+    showSaveToast('Look added');
     // if the Add/Edit Pet modal is open, a freshly pasted/dropped image is
     // meant for that pet: select it into the render preview box immediately
-    // instead of leaving the user to go pick it from the deck manually
+    // instead of leaving the user to go pick it from the deck manually —
+    // but still runs through the same merge check as clicking/dragging a
+    // look in, so a pasted image doesn't silently merge this pet into
+    // another pet's stack any more quietly than any other entry point.
     if (petModal && !petModal.classList.contains('hidden')) {
-      pendingImageSrc = src;
-      updateModalStage();
-      renderModalDeckPicker();
+      confirmLookMergeIfNeeded(src).then((ok) => {
+        if (!ok) return; // image stays staged in the deck either way — just not auto-assigned to this pet
+        if (!pendingLooksOrder.includes(src)) pendingLooksOrder.push(src);
+        pendingImageSrc = src;
+        updateModalStage();
+        renderModalLooksRow();
+        refreshModalDeckPickerIfOpen();
+      });
     }
   }
 
@@ -1851,15 +2246,61 @@
     return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
   }
 
+  // ---------- paste destination chooser ----------
+  // Now that a paste could reasonably mean either Looks or the Wishlist,
+  // this is the fallback for the genuinely ambiguous case: not inside the
+  // pet modal, and not focused in either zone's own dedicated paste target
+  // (both of those stay unambiguous and skip this entirely).
+  const pasteChooserModal = document.getElementById('pasteChooserModal');
+  const pasteChooserPreview = document.getElementById('pasteChooserPreview');
+  let pendingPasteFile = null;
+
+  function openPasteChooser(file) {
+    pendingPasteFile = file;
+    const reader = new FileReader();
+    reader.onload = (ev) => { pasteChooserPreview.src = ev.target.result; };
+    reader.readAsDataURL(file);
+    showModalEl(pasteChooserModal);
+  }
+  function closePasteChooser() {
+    hideModalEl(pasteChooserModal);
+    pendingPasteFile = null;
+    pasteChooserPreview.src = '';
+  }
+  document.getElementById('pasteChooserLooksBtn').addEventListener('click', () => {
+    const file = pendingPasteFile;
+    closePasteChooser();
+    if (file) stageFile(file).catch(err => console.error('Failed to stage pasted image:', err));
+  });
+  document.getElementById('pasteChooserWishlistBtn').addEventListener('click', () => {
+    const file = pendingPasteFile;
+    closePasteChooser();
+    if (file) stageWishlistFile(file).catch(err => console.error('Failed to stage wishlist image:', err));
+  });
+  document.getElementById('pasteChooserCancelBtn').addEventListener('click', closePasteChooser);
+  pasteChooserModal.addEventListener('click', (e) => { if (e.target === pasteChooserModal) closePasteChooser(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !pasteChooserModal.classList.contains('hidden')) closePasteChooser();
+  });
+
+  // A handful of other modals shouldn't get the chooser popped on top of
+  // them if a paste happens to land while they're open — checked by id so
+  // this stays correct even for modals defined further down the file.
+  function isAnyOtherModalOpen() {
+    return ['stackEditModal', 'tagsModal', 'appConfirmModal', 'searchNeopetModal']
+      .some(id => { const el = document.getElementById(id); return el && !el.classList.contains('hidden'); });
+  }
+
   // global clipboard paste — works anywhere on the main screen, not just when
-  // the zone is focused. Registered on the capture phase (not bubble) so it
+  // a zone is focused. Registered on the capture phase (not bubble) so it
   // sees the paste before any other listener on a descendant element could
   // stop it from propagating.
   document.addEventListener('paste', (e) => {
-    // the Image Deck only exists in the Editor/Tracker view — while inside the
-    // Lookup view (petpet image, rich-text description, etc.) this listener
-    // must stay completely out of the way so those pastes never leak in here
-    if (currentView === 'detail') return;
+    // Looks and the Wishlist only exist in the Editor/Tracker view — while
+    // inside the Lookup view (petpet image, rich-text description, etc.) or
+    // the Preview tab, this listener must stay completely out of the way so
+    // those pastes never leak in here.
+    if (currentView !== 'tracker') return;
     const clipboard = e.clipboardData || window.clipboardData;
     if (!clipboard) return;
     // Prefer clipboardData.items (gives access to .getAsFile()), but some
@@ -1882,8 +2323,24 @@
     // still gets priority for normal text pasting.
     if (!modalOpen && isEditableTarget(document.activeElement)) return;
     e.preventDefault();
-    stageFile(file).catch(err => console.error('Failed to stage pasted image:', err));
-    flashPasteZone(true);
+    if (modalOpen) {
+      // Unambiguous: a paste while editing a specific pet always means
+      // "this pet's looks" — same as it always has.
+      stageFile(file).catch(err => console.error('Failed to stage pasted image:', err));
+      flashPasteZone(true);
+      return;
+    }
+    if (document.activeElement === pasteZone) {
+      stageFile(file).catch(err => console.error('Failed to stage pasted image:', err));
+      flashPasteZone(true);
+      return;
+    }
+    // No zone specifically has focus and no pet modal is open — this is the
+    // genuinely ambiguous case (could reasonably mean Looks or the
+    // Wishlist), so ask rather than guess. Skipped while some other modal
+    // already has the screen's attention.
+    if (isAnyOtherModalOpen()) return;
+    openPasteChooser(file);
   }, true);
 
   function flashPasteZone(success) {
@@ -1924,7 +2381,10 @@
 
   // ---------- pet grid ----------
   const petGrid = document.getElementById('petGrid');
+  const petsMain = document.getElementById('petsMain');
   const gridEmpty = document.getElementById('gridEmpty');
+  const gridEmptyTitle = document.getElementById('gridEmptyTitle');
+  const gridEmptyBody = document.getElementById('gridEmptyBody');
   const petCount = document.getElementById('petCount');
   const imageFilterBanner = document.getElementById('imageFilterBanner');
   const imageFilterThumb = document.getElementById('imageFilterThumb');
@@ -1940,6 +2400,14 @@
     if (filters.mp && pet.hasMP) return false; // "needs MP" = show only pets that do NOT have it yet
     if (!filters.showCompleted && pet.completed) return false; // hide "Completed on Neopets" pets by default
     return true;
+  }
+
+  // Search, account, status, and the "filter by this image" banner — the
+  // narrowing filters that make an empty Name Bank/Wishlist read as "nothing
+  // matches" rather than "genuinely nothing here yet". Deliberately doesn't
+  // count "Needs MP" or "Show completed", which broaden rather than narrow.
+  function hasActivePetFilters() {
+    return !!filters.search || filters.accounts.size > 0 || filters.statuses.size > 0 || !!filters.imageSrc;
   }
 
   function sortPets(list) {
@@ -1970,25 +2438,34 @@
     }
   }
 
-  function renderGrid() {
-    updateClearFiltersVisibility();
-    if (filters.imageSrc) {
-      imageFilterBanner.classList.remove('hidden'); imageFilterBanner.classList.add('flex');
-      imageFilterThumb.src = filters.imageSrc;
-    } else {
-      imageFilterBanner.classList.add('hidden'); imageFilterBanner.classList.remove('flex');
-    }
+  // Groups the already-filtered/sorted list into display units: a lone pet
+  // stays a group of one (rendered as an ordinary card), and consecutive-or-
+  // not pets sharing the same non-null imageSrc collapse into one cluster,
+  // positioned wherever the first member of that image would have sorted.
+  // Purely a render-time grouping — pets stay fully independent records.
+  function groupPetsForDisplay(list) {
+    const groupIndexBySrc = new Map();
+    const groups = [];
+    list.forEach(pet => {
+      if (pet.imageSrc && groupIndexBySrc.has(pet.imageSrc)) {
+        groups[groupIndexBySrc.get(pet.imageSrc)].push(pet);
+      } else {
+        if (pet.imageSrc) groupIndexBySrc.set(pet.imageSrc, groups.length);
+        groups.push([pet]);
+      }
+    });
+    return groups;
+  }
 
-    const visible = sortPets(pets.filter(matchesFilters));
-    petCount.textContent = pets.length ? `(${visible.length}/${pets.length})` : '';
-    gridEmpty.classList.toggle('hidden', visible.length > 0);
-
-    petGrid.innerHTML = visible.map(pet => `
-      <div class="pet-card bg-white border border-[#E2E8E4] shadow-card card-hover overflow-hidden cursor-pointer" data-pet-id="${pet.id}">
-        <div class="pet-img-stage w-full block bg-sage overflow-hidden" data-pet-id="${pet.id}">
+  function renderPetCardHtml(pet) {
+    const altCount = Array.isArray(pet.altImageSrcs) ? pet.altImageSrcs.length : 0;
+    return `
+      <div class="pet-card self-start bg-white border border-[#E2E8E4] shadow-card card-hover overflow-hidden cursor-pointer" data-pet-id="${pet.id}">
+        <div class="image-assign-target pet-img-stage relative w-full block bg-sage overflow-hidden" data-pet-id="${pet.id}">
           ${pet.imageSrc
             ? `<img src="${pet.imageSrc}" class="w-full h-full object-cover pointer-events-none" alt="${escapeHtml(pet.name)}">`
             : `<div class="w-full h-full flex items-center justify-center">${placeholderSvg()}</div>`}
+          ${altCount ? `<span class="absolute top-2 right-2 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-forest/85 text-white leading-none pointer-events-none" title="${altCount} other look${altCount > 1 ? 's' : ''} saved for this pet">+${altCount} look${altCount > 1 ? 's' : ''}</span>` : ''}
         </div>
         <div class="p-3">
           <div class="flex items-start justify-between gap-1">
@@ -2008,8 +2485,443 @@
           ${pet.notes ? `<p class="text-xs text-[#6E8880] mt-1.5 line-clamp-2">${escapeHtml(pet.notes)}</p>` : ''}
         </div>
       </div>
-    `).join('');
+    `;
   }
+
+  function renderClusterCardHtml(group) {
+    const src = group[0].imageSrc;
+    const expanded = expandedClusters.has(src);
+    const chevron = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}"><path d="M6 9l6 6 6-6"/></svg>`;
+
+    // Every candidate as a compact row, alphabetically — click a row to open
+    // that pet's own edit modal. The dismiss ✕ and "keep this, unpair the
+    // rest" checkmark only show up in edit mode — they're editing actions,
+    // so a view-only visitor shouldn't see buttons that do nothing for them.
+    const sortedGroup = [...group].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
+    );
+    const rows = sortedGroup.map(pet => `
+      <div class="cluster-candidate-row flex items-center justify-between gap-1 px-2.5 py-1.5 hover:bg-sage/60 cursor-pointer border-t border-[#E2E8E4]" data-cluster-pet-id="${pet.id}">
+        <span class="text-xs font-semibold text-forest truncate">${escapeHtml(pet.name)}</span>
+        ${isUnlocked ? `
+          <div class="flex items-center gap-0.5 shrink-0">
+            <button data-dismiss-candidate="${pet.id}" title="Doesn't fit — send back to the Name Bank" class="w-5 h-5 flex items-center justify-center rounded-full text-[#8AA39A] hover:text-white hover:bg-rose-500 transition">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <button data-pick-winner="${pet.id}" title="Keep this one, unpair the rest" class="w-5 h-5 flex items-center justify-center rounded-full text-[#8AA39A] hover:text-white hover:bg-teal transition">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+            </button>
+          </div>
+        ` : ''}
+      </div>
+    `).join('');
+
+    // The card itself (stack layers + image + summary row) is ALWAYS rendered
+    // at this same collapsed size, in both states — that's what "anchors" it
+    // in the flex-wrap grid so its footprint never changes. When expanded, the
+    // candidate list is appended as a separate, absolutely-positioned panel
+    // that floats below the card (like any other dropdown/popover in the app)
+    // instead of being laid out inline. Because absolutely-positioned elements
+    // are taken out of normal document flow, this floating panel can be as
+    // tall as it needs to be without ever pushing the next row of cards down —
+    // it just overlaps on top of them, scrolling internally past a max height.
+    // The inner scroll container uses the same "invisible until scrolled/
+    // hovered" scrollbar treatment as the image deck elsewhere in the app
+    // (.deck-scroll), plus a "cluster-popover-scroll" hook so a single
+    // delegated listener can drive it since this markup is rebuilt on every
+    // render rather than bound once.
+    //
+    // The two "peeking" layers behind the front card give the stack its
+    // depth illusion. Their vertical offset starts as a small default (6px /
+    // 12px) here, then gets stretched by alignClusterStacks() after render so
+    // the back-most layer's bottom edge lands flush with a normal single
+    // card's bottom edge — see that function for why it's done at runtime
+    // instead of with a fixed number.
+    //
+    // Two separate click targets replace what used to be one combined
+    // toggle-everything tile: the image opens the bulk image/tag editor
+    // (previously a small pencil button easy to miss), and the summary row
+    // below it expands/collapses the candidate list. Splitting them means
+    // there's no longer a pencil icon competing for space, and "click the
+    // picture to edit the picture" is a more direct affordance than a
+    // separate icon ever was.
+    return `
+      <div class="pet-card self-start relative${expanded ? ' z-20' : ''}" data-cluster-src="${escapeHtml(src)}">
+        <div class="cluster-stack-layer cluster-stack-layer-1 absolute inset-0 bg-white border border-[#E2E8E4] opacity-70 pointer-events-none" style="transform:translate(6px,6px)"></div>
+        <div class="cluster-stack-layer cluster-stack-layer-2 absolute inset-0 bg-white border border-[#E2E8E4] opacity-40 pointer-events-none" style="transform:translate(12px,12px)"></div>
+        <div class="cluster-card-face relative bg-white border border-[#E2E8E4] shadow-card card-hover overflow-hidden">
+          <div class="w-full block bg-sage overflow-hidden relative${isUnlocked ? ' cursor-pointer' : ''}" style="height:185px"
+            ${isUnlocked ? `data-cluster-edit="${escapeHtml(src)}" title="Edit image or tags for all ${group.length}" aria-label="Edit image or tags for every candidate in this stack"` : ''}>
+            <img src="${src}" class="w-full h-full object-cover pointer-events-none" alt="">
+            <span class="absolute top-2 left-2 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-forest/85 text-white leading-none pointer-events-none">${group.length} candidates</span>
+          </div>
+          <div class="p-3 flex items-center justify-between gap-1 cursor-pointer hover:bg-sage/50 transition" data-cluster-toggle="${escapeHtml(src)}">
+            <span class="text-xs font-bold text-forest truncate">${group.length} name options</span>
+            ${chevron}
+          </div>
+        </div>
+        ${expanded ? `
+          <div class="cluster-popover absolute left-0 right-0 top-full mt-1.5 z-20 bg-white border border-[#E2E8E4] shadow-2xl rounded-xl overflow-hidden">
+            <div class="cluster-popover-scroll deck-scroll max-h-72 overflow-y-auto">${rows}</div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  // Stretches each stack card's two "peeking" ghost layers so the back-most
+  // one's bottom edge lines up with the bottom of an ordinary single-pet
+  // card, instead of the fixed 12px peek looking noticeably shorter than its
+  // neighbors. Measured against real, currently-rendered cards (rather than
+  // a guessed pixel value) so it stays correct across both themes and any
+  // future font/spacing tweaks. Prefers a single card WITHOUT notes as the
+  // reference height, since that's the "baseline" card size — a card with a
+  // notes paragraph is already taller than typical and would overshoot it.
+  function alignClusterStacks() {
+    const singleCards = Array.from(petGrid.querySelectorAll('.pet-card[data-pet-id]'));
+    if (!singleCards.length) return; // nothing to measure against (e.g. every visible pet is part of a cluster) — leave the small default peek
+    const baseline = singleCards.find(c => !c.querySelector('p')) || singleCards[0];
+    const targetHeight = baseline.getBoundingClientRect().height;
+
+    petGrid.querySelectorAll('[data-cluster-src]').forEach((wrap) => {
+      const front = wrap.querySelector('.cluster-card-face');
+      const layer1 = wrap.querySelector('.cluster-stack-layer-1');
+      const layer2 = wrap.querySelector('.cluster-stack-layer-2');
+      if (!front || !layer1 || !layer2) return;
+      const frontHeight = front.getBoundingClientRect().height;
+      const extra = Math.max(12, targetHeight - frontHeight); // never collapse below the original subtle peek
+      layer1.style.transform = `translate(6px, ${Math.round(extra / 2)}px)`;
+      layer2.style.transform = `translate(12px, ${Math.round(extra)}px)`;
+    });
+  }
+
+  function renderGrid() {
+    updateClearFiltersVisibility();
+    if (filters.imageSrc) {
+      imageFilterBanner.classList.remove('hidden'); imageFilterBanner.classList.add('flex');
+      imageFilterThumb.src = filters.imageSrc;
+    } else {
+      imageFilterBanner.classList.add('hidden'); imageFilterBanner.classList.remove('flex');
+    }
+
+    const visible = sortPets(pets.filter(matchesFilters));
+    // Split into pictured pets (the main grid, exactly as before) and
+    // nameless-so-far candidates (the Name Bank) — a pet's presence in one
+    // or the other is driven purely by whether it has an image, so nothing
+    // ever needs to be manually "moved" between them.
+    const visiblePets = visible.filter(p => p.imageSrc);
+    const visibleBank = visible.filter(p => !p.imageSrc);
+    petCount.textContent = pets.length ? `(${visible.length}/${pets.length})` : '';
+
+    // The "nothing here" box only earns its place when there's truly
+    // nothing matching anywhere — if the Name Bank has what the filters
+    // are looking for, showing an empty dashed box above it would just be
+    // wasted space pointing at a section that's about to say the same thing.
+    const showGridEmpty = visiblePets.length === 0 && visibleBank.length === 0;
+    gridEmpty.classList.toggle('hidden', !showGridEmpty);
+    if (showGridEmpty) {
+      gridEmptyTitle.textContent = 'No pet names here yet';
+      gridEmptyBody.textContent = 'Try adjusting your filters, or add a new pet name to get started.';
+    }
+
+    const groups = groupPetsForDisplay(visiblePets);
+    petGrid.innerHTML = groups.map(group => group.length > 1 ? renderClusterCardHtml(group) : renderPetCardHtml(group[0])).join('');
+    alignClusterStacks();
+
+    renderNameBank(visibleBank);
+    renderWishlist();
+  }
+
+  // ---------- name bank ----------
+  const nameBankSection = document.getElementById('nameBankSection');
+  const nameBankToggle = document.getElementById('nameBankToggle');
+  const nameBankChevron = document.getElementById('nameBankChevron');
+  const nameBankBody = document.getElementById('nameBankBody');
+  const nameBankCount = document.getElementById('nameBankCount');
+  const nameBankEmpty = document.getElementById('nameBankEmpty');
+  const nameBankList = document.getElementById('nameBankList');
+  let nameBankExpanded = false; // transient, like expandedClusters — collapsed again on reload
+
+  function renderNameBankRow(pet) {
+    // The three lookup shortcuts now live inside the pet's own edit modal
+    // (click the card to get there) rather than being duplicated here too —
+    // one place for them instead of two. That leaves every card the same
+    // compact single-line height, which is why the list below went back to
+    // a plain row-major grid instead of the column-packed masonry layout
+    // that used to make room for the old CTA stack.
+    return `
+      <div class="image-assign-target name-bank-card group relative flex items-center justify-between gap-2 p-3 rounded-xl border border-[#E2E8E4] hover:border-teal transition bg-white cursor-pointer" data-pet-id="${pet.id}">
+        <div class="min-w-0 flex-1 flex items-center gap-1">
+          <h3 data-name-filter="${escapeHtml(pet.name)}" class="font-bold text-forest text-sm truncate hover:underline">${escapeHtml(pet.name)}</h3>
+          ${pet.completed ? `<svg class="shrink-0 text-emerald-500" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" title="Completed on Neopets"><path d="M20 6L9 17l-5-5"/></svg>` : ''}
+        </div>
+        <div class="shrink-0 flex items-center gap-1">
+          ${pet.status ? `<span class="text-[9px] font-bold px-1 py-0.5 rounded-full leading-none ${statusStyles[pet.status] || 'bg-slate-100 text-slate-600 border border-slate-200'}">${escapeHtml(pet.status)}</span>` : ''}
+          ${pet.account ? `<span class="text-[9px] font-bold px-1 py-0.5 rounded-full bg-sage text-tealdark border border-sagedeep leading-none">${escapeHtml(pet.account)}</span>` : ''}
+          <button data-menu-btn="${pet.id}" class="shrink-0 w-6 h-6 flex items-center justify-center text-[#8AA39A] hover:text-forest hover:bg-sage rounded-full transition">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderNameBank(visibleBank) {
+    // Visible whenever there's actually a match. With zero matches: only
+    // stays up as a stable, discoverable drop target when unlocked AND
+    // nothing is actively filtering — a filter narrowing a non-empty bank
+    // down to zero hides it instead, since an empty box under an active
+    // filter reads as "nothing matches" rather than an invitation.
+    const sectionVisible = visibleBank.length > 0 || (isUnlocked && !hasActivePetFilters());
+    nameBankSection.classList.toggle('hidden', !sectionVisible);
+    if (!sectionVisible) return;
+
+    nameBankCount.textContent = `(${visibleBank.length})`;
+    // Collapsed points right, expanded points down — the chevron's native
+    // path already points down, so collapsed is the one that needs rotating.
+    nameBankChevron.classList.toggle('-rotate-90', !nameBankExpanded);
+    nameBankBody.classList.toggle('hidden', !nameBankExpanded);
+
+    if (!nameBankExpanded) return; // collapsed — no need to build rows nobody can see yet
+
+    const sorted = [...visibleBank].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
+    );
+    nameBankEmpty.classList.toggle('hidden', sorted.length > 0);
+    // 'grid' is toggled alongside 'hidden' explicitly (rather than living in
+    // the static class list) — same reasoning as imageFilterBanner's
+    // hidden/flex toggle elsewhere: relying on both classes being present
+    // at once and hoping cascade order sorts it out is fragile. Back to a
+    // plain row-major grid now that cards are all the same compact height
+    // (the CTA row that used to make heights vary is gone — see
+    // renderNameBankRow) — alphabetical order now reads left-to-right,
+    // top-to-bottom exactly like the main pet grid above it, rather than
+    // the column-packed masonry order that made sense only when some cards
+    // were much taller than others.
+    nameBankList.classList.toggle('hidden', sorted.length === 0);
+    nameBankList.classList.toggle('grid', sorted.length > 0);
+    nameBankList.innerHTML = sorted.map(renderNameBankRow).join('');
+  }
+
+  nameBankToggle.addEventListener('click', () => {
+    nameBankExpanded = !nameBankExpanded;
+    renderGrid();
+  });
+
+  nameBankList.addEventListener('click', (e) => {
+    const menuBtn = e.target.closest('[data-menu-btn]');
+    if (menuBtn) { e.stopPropagation(); toggleCardMenu(menuBtn); return; }
+    const nameEl = e.target.closest('[data-name-filter]');
+    if (nameEl) {
+      e.stopPropagation();
+      const name = nameEl.dataset.nameFilter;
+      if (filters.search === name.toLowerCase()) {
+        filters.search = '';
+        searchInput.value = '';
+      } else {
+        filters.search = name.toLowerCase();
+        searchInput.value = name;
+      }
+      renderGrid();
+      return;
+    }
+    const row = e.target.closest('[data-pet-id]');
+    if (row) openModal(row.dataset.petId);
+  });
+
+  // ---------- pet wishlist ----------
+  const wishlistSection = document.getElementById('wishlistSection');
+  const wishlistToggle = document.getElementById('wishlistToggle');
+  const wishlistChevron = document.getElementById('wishlistChevron');
+  const wishlistBody = document.getElementById('wishlistBody');
+  const wishlistCount = document.getElementById('wishlistCount');
+  const wishlistEmpty = document.getElementById('wishlistEmpty');
+  const wishlistGrid = document.getElementById('wishlistGrid');
+  let wishlistExpanded = false; // transient, like nameBankExpanded — collapsed again on reload
+
+  // Cards are just the image now — click one to open its details (note +
+  // delete) in a small modal instead of cramming controls onto every card.
+  function renderWishlistCard(img) {
+    return `
+      <div class="wishlist-card w-[185px] h-[185px] shrink-0 rounded-xl border border-[#E2E8E4] hover:border-teal transition bg-sage overflow-hidden cursor-pointer" data-wishlist-id="${img.id}">
+        <img src="${img.src}" class="w-full h-full object-cover pointer-events-none" alt="Wishlist reference image">
+      </div>
+    `;
+  }
+
+  function renderWishlist() {
+    // The wishlist isn't part of what the pet filters actually search
+    // (it has no name, status, or account of its own) — showing it
+    // unfiltered underneath a filtered pet grid would be misleading, like
+    // it had somehow matched too. So it steps out of the way entirely
+    // whenever any of those filters are actively narrowing the grid above.
+    if (hasActivePetFilters()) {
+      wishlistSection.classList.add('hidden');
+      return;
+    }
+
+    const sectionVisible = isUnlocked || wishlistImages.length > 0;
+    wishlistSection.classList.toggle('hidden', !sectionVisible);
+    if (!sectionVisible) return;
+
+    wishlistCount.textContent = `(${wishlistImages.length})`;
+    wishlistChevron.classList.toggle('-rotate-90', !wishlistExpanded);
+    wishlistBody.classList.toggle('hidden', !wishlistExpanded);
+    if (!wishlistExpanded) return;
+
+    const sorted = [...wishlistImages].sort((a, b) => b.addedAt - a.addedAt); // newest idea first — there's no name to alphabetize by here
+    wishlistEmpty.classList.toggle('hidden', sorted.length > 0);
+    wishlistGrid.classList.toggle('hidden', sorted.length === 0);
+    wishlistGrid.innerHTML = sorted.map(renderWishlistCard).join('');
+  }
+
+  wishlistToggle.addEventListener('click', () => {
+    wishlistExpanded = !wishlistExpanded;
+    renderWishlist();
+  });
+
+  function addWishlistImage(src) {
+    const img = { id: genId(), src, note: '', addedAt: Date.now() };
+    wishlistImages.unshift(img);
+    saveWishlistImages();
+    if (!wishlistExpanded) { wishlistExpanded = true; } // surface the new addition instead of leaving it hidden behind a collapsed header
+    renderWishlist();
+    showSaveToast('Pet wish added');
+  }
+  async function stageWishlistFile(file) {
+    if (!file || !file.type || !file.type.startsWith('image/')) return;
+    const publicUrl = await sbUploadAsset(file, 'wishlist-images');
+    if (publicUrl) { addWishlistImage(publicUrl); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => addWishlistImage(ev.target.result);
+    reader.onerror = () => console.error('Failed to read wishlist image as a data URL:', reader.error);
+    reader.readAsDataURL(file);
+  }
+
+  function deleteWishlistImage(id) {
+    if (!isUnlocked) return;
+    const idx = wishlistImages.findIndex(i => i.id === id);
+    if (idx === -1) return;
+    const data = wishlistImages[idx];
+    wishlistImages.splice(idx, 1);
+    saveWishlistImages();
+    lastDeleted = { type: 'wishlist-image', data, index: idx };
+    showToast('Removed from wishlist');
+    renderWishlist();
+  }
+
+  wishlistGrid.addEventListener('click', (e) => {
+    const card = e.target.closest('[data-wishlist-id]');
+    if (card) openWishlistItemModal(card.dataset.wishlistId);
+  });
+
+  // ---------- wishlist item modal (note + delete) ----------
+  const wishlistItemModal = document.getElementById('wishlistItemModal');
+  const wishlistItemImg = document.getElementById('wishlistItemImg');
+  const wishlistItemNoteInput = document.getElementById('wishlistItemNoteInput');
+  const wishlistItemDeleteBtn = document.getElementById('wishlistItemDeleteBtn');
+  const wishlistItemDoneBtn = document.getElementById('wishlistItemDoneBtn');
+  let activeWishlistItemId = null;
+
+  function openWishlistItemModal(id) {
+    const img = wishlistImages.find(i => i.id === id);
+    if (!img) return;
+    activeWishlistItemId = id;
+    wishlistItemImg.src = img.src;
+    wishlistItemNoteInput.value = img.note || '';
+    showModalEl(wishlistItemModal);
+    setTimeout(() => wishlistItemNoteInput.focus(), 30);
+  }
+  function saveWishlistItemNote() {
+    if (!activeWishlistItemId) return;
+    const img = wishlistImages.find(i => i.id === activeWishlistItemId);
+    if (img && img.note !== wishlistItemNoteInput.value) {
+      img.note = wishlistItemNoteInput.value;
+      saveWishlistImages();
+    }
+  }
+  function closeWishlistItemModal() {
+    saveWishlistItemNote();
+    hideModalEl(wishlistItemModal);
+    activeWishlistItemId = null;
+    wishlistItemImg.src = '';
+  }
+  wishlistItemDoneBtn.addEventListener('click', closeWishlistItemModal);
+  document.getElementById('wishlistItemCloseX').addEventListener('click', closeWishlistItemModal);
+  wishlistItemModal.addEventListener('click', (e) => { if (e.target === wishlistItemModal) closeWishlistItemModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !wishlistItemModal.classList.contains('hidden')) closeWishlistItemModal();
+  });
+  wishlistItemDeleteBtn.addEventListener('click', () => {
+    if (!activeWishlistItemId) return;
+    const id = activeWishlistItemId;
+    hideModalEl(wishlistItemModal);
+    activeWishlistItemId = null;
+    deleteWishlistImage(id);
+  });
+
+  // First click on "View owner" for a pet with no saved owner yet asks for
+  // the username once (there's no way to fetch it automatically — Neopets
+  // doesn't allow this page to read its pages cross-origin) and saves it
+  // straight onto the pet record, the same field the "Neopets owner" input
+  // in the pet modal edits. Every click after that just opens the link —
+  // no repeat prompting. Saving is a write, so it goes through the same
+  // "prompt for the PIN if locked" gate as opening the edit modal; opening
+  // an already-saved link stays available read-only regardless of lock.
+  async function handleViewOwnerClick(petId) {
+    const pet = pets.find(p => p.id === petId);
+    if (!pet) return;
+    if (pet.owner) {
+      window.open(buildOwnerLookupUrl(pet.owner), '_blank', 'noopener,noreferrer');
+      return;
+    }
+    if (!isUnlocked) {
+      await promptEnterPin();
+      if (!isUnlocked) return; // user cancelled or entered the wrong PIN
+    }
+    const entered = await appPrompt(
+      `Who owns "${pet.name}" on Neopets right now?`,
+      { title: "Enter the owner's username", okText: 'Save & open', placeholder: 'Neopets username' }
+    );
+    if (!entered) return; // cancelled — nothing saved, nothing opened
+    pet.owner = entered;
+    dirtyPetIds.add(pet.id);
+    savePets();
+    renderGrid();
+    // keep the open pet modal's own input in sync if this was triggered
+    // from its "View owner" button rather than the Name Bank card
+    if (editingId === pet.id && petModal && !petModal.classList.contains('hidden')) modalOwnerInput.value = entered;
+    sbSavePetsToSettings(pets).then(({ error }) => {
+      if (error) console.error('Supabase pet save error (set owner from Name Bank):', error);
+      else dirtyPetIds.delete(pet.id);
+    });
+    window.open(buildOwnerLookupUrl(pet.owner), '_blank', 'noopener,noreferrer');
+  }
+
+  // Delegated listener for the expanded candidate list's scrollbar: since
+  // that panel's markup is torn down and rebuilt on every render (rather
+  // than existing once in the page), a per-element listener would need to
+  // be re-attached constantly. `scroll` events don't bubble, but they do
+  // fire during the capture phase, so listening on petGrid with `capture:
+  // true` reliably catches scrolling on whichever popover is currently open.
+  let clusterScrollTimer = null;
+  petGrid.addEventListener('scroll', (e) => {
+    const el = e.target;
+    if (!el.classList || !el.classList.contains('cluster-popover-scroll')) return;
+    el.classList.add('is-scrolling');
+    clearTimeout(clusterScrollTimer);
+    clusterScrollTimer = setTimeout(() => el.classList.remove('is-scrolling'), 600);
+  }, true);
+
+  // Clicking anywhere outside an expanded candidate list closes it, the same
+  // way the other floating popovers in this app (media switcher, color
+  // picker) already behave.
+  document.addEventListener('mousedown', (e) => {
+    if (!expandedClusters.size) return;
+    if (e.target.closest('[data-cluster-src]')) return; // inside a stack card (its toggle, rows, or pick-winner button) — leave it open
+    expandedClusters.clear();
+    renderGrid();
+  });
 
   petGrid.addEventListener('click', (e) => {
     const menuBtn = e.target.closest('[data-menu-btn]');
@@ -2028,28 +2940,244 @@
       renderGrid();
       return;
     }
+    const dismissBtn = e.target.closest('[data-dismiss-candidate]');
+    if (dismissBtn) { e.stopPropagation(); dismissClusterCandidate(dismissBtn.dataset.dismissCandidate); return; }
+    const pickBtn = e.target.closest('[data-pick-winner]');
+    if (pickBtn) { e.stopPropagation(); pickClusterWinner(pickBtn.dataset.pickWinner); return; }
+    const editBtn = e.target.closest('[data-cluster-edit]');
+    if (editBtn) { e.stopPropagation(); openStackEditModal(editBtn.dataset.clusterEdit); return; }
+    const clusterToggle = e.target.closest('[data-cluster-toggle]');
+    if (clusterToggle) {
+      e.stopPropagation();
+      const src = clusterToggle.dataset.clusterToggle;
+      if (expandedClusters.has(src)) expandedClusters.delete(src); else expandedClusters.add(src);
+      renderGrid();
+      return;
+    }
+    const clusterRow = e.target.closest('[data-cluster-pet-id]');
+    if (clusterRow) { openModal(clusterRow.dataset.clusterPetId); return; }
     const card = e.target.closest('.pet-card');
-    if (card) openModal(card.dataset.petId);
+    if (card && card.dataset.petId) openModal(card.dataset.petId);
   });
 
-  petGrid.addEventListener('dragenter', (e) => {
-    const drop = e.target.closest('.pet-img-stage');
+  // One-click "keep this candidate, unpair the rest of its cluster" — never
+  // deletes anything, since a dismissed candidate's name may still be a
+  // legitimately tracked, untaken name (see the Name Bank discussion).
+  // Unpairing drops a losing pet's imageSrc back to whichever OTHER look it
+  // still has saved on itself (its next altImageSrcs entry), if any — so a
+  // pet that walked into this cluster while it already had its own looks
+  // doesn't come out the other side with a blank card. Only a pet with no
+  // other saved look of its own goes back to truly imageless, same as an
+  // ordinary pet with no image assigned yet. Fully undoable either way.
+  function pickClusterWinner(winnerId) {
+    if (!isUnlocked) return; // edit-only action — the button itself is hidden while locked, this is just a backstop
+    const winner = pets.find(p => p.id === winnerId);
+    if (!winner || !winner.imageSrc) return;
+    const src = winner.imageSrc;
+    // scope to whatever's currently visible in this cluster (i.e. already
+    // passed the active filters), matching what the user is actually
+    // looking at rather than every pet anywhere sharing this image
+    const visibleGroupIds = new Set(sortPets(pets.filter(matchesFilters)).filter(p => p.imageSrc === src).map(p => p.id));
+    const others = pets.filter(p => p.id !== winnerId && visibleGroupIds.has(p.id));
+    if (!others.length) return;
+
+    const undoItems = others.map(p => ({
+      id: p.id,
+      imageSrc: p.imageSrc,
+      altImageSrcs: Array.isArray(p.altImageSrcs) ? [...p.altImageSrcs] : []
+    }));
+    others.forEach(p => {
+      const remainingLooks = Array.isArray(p.altImageSrcs) ? p.altImageSrcs.slice() : [];
+      p.imageSrc = remainingLooks.length ? remainingLooks.shift() : null;
+      p.altImageSrcs = remainingLooks;
+      dirtyPetIds.add(p.id);
+    });
+    dirtyPetIds.add(winnerId);
+    expandedClusters.delete(src);
+
+    savePets();
+    renderGrid();
+    showToast(`Kept "${winner.name}" — unpaired ${others.length} other${others.length > 1 ? 's' : ''} from this image`);
+    lastDeleted = { type: 'bulk-unpair', items: undoItems };
+
+    sbSavePetsToSettings(pets).then(({ error }) => {
+      if (error) console.error('Supabase pet save error (pick winner):', error);
+      else { dirtyPetIds.delete(winnerId); others.forEach(p => dirtyPetIds.delete(p.id)); }
+    });
+  }
+
+  // ✕ ("doesn't fit") on a single candidate row inside an expanded stack —
+  // the one-row counterpart to pickClusterWinner above: that one keeps a
+  // winner and unpairs everyone else, this one unpairs just this ONE
+  // candidate and leaves the rest of the stack untouched. Same
+  // non-destructive fallback as everywhere else: if this pet has another
+  // saved look of its own, that becomes its new main image instead of
+  // leaving it blank, so it lands in the Name Bank only when it truly has
+  // no picture left of its own.
+  function dismissClusterCandidate(petId) {
+    if (!isUnlocked) return; // edit-only action — the button itself is hidden while locked, this is just a backstop
+    const pet = pets.find(p => p.id === petId);
+    if (!pet || !pet.imageSrc) return;
+    const src = pet.imageSrc;
+
+    const undoItem = { id: pet.id, imageSrc: pet.imageSrc, altImageSrcs: Array.isArray(pet.altImageSrcs) ? [...pet.altImageSrcs] : [] };
+    const remainingLooks = Array.isArray(pet.altImageSrcs) ? pet.altImageSrcs.slice() : [];
+    pet.imageSrc = remainingLooks.length ? remainingLooks.shift() : null;
+    pet.altImageSrcs = remainingLooks;
+    dirtyPetIds.add(pet.id);
+    expandedClusters.delete(src); // the stack's shape just changed (one fewer candidate) — start collapsed rather than pointing at a stale src
+
+    savePets();
+    renderGrid();
+    showToast(pet.imageSrc ? `"${pet.name}" unpaired from this image` : `"${pet.name}" sent to the Name Bank`);
+    lastDeleted = { type: 'bulk-unpair', items: [undoItem] }; // same undo shape pickClusterWinner uses — works fine for a single item
+
+    sbSavePetsToSettings(pets).then(({ error }) => {
+      if (error) console.error('Supabase pet save error (dismiss candidate):', error);
+      else dirtyPetIds.delete(pet.id);
+    });
+  }
+
+  // ---------- stack bulk-edit modal ----------
+  // Lets the person swap the shared reference image for EVERY candidate in a
+  // stack at once, without first collapsing it down to one winner — that
+  // step (pickClusterWinner, above) is for when they've already decided;
+  // this is for while they're still comparing several names against one
+  // look and just want a better/updated reference image applied across the
+  // whole group in one go. Status/account stay per-pet, edited from the
+  // regular pet modal, since those genuinely vary candidate-to-candidate.
+  const stackEditModal = document.getElementById('stackEditModal');
+  const stackEditTitle = document.getElementById('stackEditTitle');
+  const stackEditSubtitle = document.getElementById('stackEditSubtitle');
+  const stackEditDeckPicker = document.getElementById('stackEditDeckPicker');
+  const stackEditSaveBtn = document.getElementById('stackEditSaveBtn');
+  const stackEditSaveBtnDefaultLabel = stackEditSaveBtn.textContent;
+  let activeStackEditSrc = null;
+  let stackEditPendingImage = null; // null = leave the image as is; otherwise the newly chosen src
+
+  // Same visible-scope rule as pickClusterWinner: only the candidates
+  // currently passing the active filters, matching what's actually on
+  // screen rather than every pet anywhere that happens to share this image.
+  function getStackEditGroup() {
+    if (!activeStackEditSrc) return [];
+    return sortPets(pets.filter(matchesFilters)).filter(p => p.imageSrc === activeStackEditSrc);
+  }
+
+  // Grid instead of a horizontal strip so ~16 candidate images (4x4) are
+  // visible at a glance; anything beyond that scrolls vertically within the
+  // fixed-height container rather than growing the modal.
+  // The currently-relevant image — whichever one candidates would actually
+  // land on if saved right now — always gets the full border+ring treatment,
+  // whether that's the group's original shared image (nothing picked yet)
+  // or a freshly-clicked replacement. Previously the original image only
+  // got a thin border with no ring, which read as far less "selected" than
+  // a newly-picked one; there's no meaningful difference between the two
+  // states from the user's point of view, so they now look identical.
+  function renderStackEditDeckPicker() {
+    const currentSrc = stackEditPendingImage || activeStackEditSrc;
+    stackEditDeckPicker.innerHTML = stagedImages.map(img => `
+      <img src="${img.src}" data-stack-pick-img="${img.id}"
+        class="w-full aspect-square object-cover rounded-lg border-2 cursor-pointer transition ${img.src === currentSrc ? 'border-teal ring-2 ring-teal' : 'border-[#E2E8E4] hover:border-teal'}">
+    `).join('');
+  }
+  stackEditDeckPicker.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-stack-pick-img]');
+    if (!el) return;
+    const img = stagedImages.find(i => i.id === el.dataset.stackPickImg);
+    if (!img) return;
+    stackEditPendingImage = (img.src === activeStackEditSrc) ? null : img.src; // clicking the current image again is just "never mind"
+    renderStackEditDeckPicker();
+  });
+
+  function openStackEditModal(src) {
+    if (!isUnlocked) return; // edit-only action — the pencil button itself is hidden while locked, this is just a backstop
+    activeStackEditSrc = src;
+    stackEditPendingImage = null;
+    const group = getStackEditGroup();
+    if (!group.length) return;
+    stackEditTitle.textContent = `Edit ${group.length} candidate${group.length === 1 ? '' : 's'}`;
+    const sortedNames = group.map(p => p.name).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })
+    );
+    stackEditSubtitle.innerHTML = `<span class="font-bold text-forest">Changes apply to every name currently sharing this image:</span> <span class="text-[#6E8880]">${sortedNames.map(escapeHtml).join(', ')}.</span>`;
+    renderStackEditDeckPicker();
+    showModalEl(stackEditModal);
+  }
+
+  function closeStackEditModal() {
+    hideModalEl(stackEditModal);
+    activeStackEditSrc = null;
+    stackEditPendingImage = null;
+  }
+
+  document.getElementById('stackEditCloseX').addEventListener('click', closeStackEditModal);
+  document.getElementById('stackEditCancelBtn').addEventListener('click', closeStackEditModal);
+  stackEditModal.addEventListener('click', (e) => { if (e.target === stackEditModal) closeStackEditModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !stackEditModal.classList.contains('hidden')) closeStackEditModal();
+  });
+
+  stackEditSaveBtn.addEventListener('click', async () => {
+    const group = getStackEditGroup();
+    if (!group.length) { closeStackEditModal(); return; }
+
+    let finalNewImage = stackEditPendingImage;
+    if (finalNewImage && finalNewImage.startsWith('data:')) {
+      stackEditSaveBtn.disabled = true;
+      stackEditSaveBtn.textContent = 'Uploading image…';
+      const { url, error } = await resolveImageForStorage(finalNewImage);
+      stackEditSaveBtn.disabled = false;
+      stackEditSaveBtn.textContent = stackEditSaveBtnDefaultLabel;
+      if (error || !url) {
+        console.error('Supabase Storage Upload Error (stack edit):', error);
+        showToast("Couldn't upload that image — check your connection and try again.");
+        return;
+      }
+      const stagedMatch = stagedImages.find(i => i.src === finalNewImage);
+      if (stagedMatch) { stagedMatch.src = url; saveImages(); renderDeck(); }
+      finalNewImage = url;
+    }
+
+    const oldSrc = activeStackEditSrc;
+
+    group.forEach(pet => {
+      if (finalNewImage) pet.imageSrc = finalNewImage;
+      dirtyPetIds.add(pet.id);
+    });
+    if (oldSrc) expandedClusters.delete(oldSrc); // the group's shape may have just changed (new image, possibly merging into a different stack) — start collapsed rather than pointing at a stale src
+
+    savePets();
+    renderGrid();
+    closeStackEditModal();
+    showToast(`Updated ${group.length} candidate${group.length === 1 ? '' : 's'}`);
+
+    sbSavePetsToSettings(pets).then(({ error }) => {
+      if (error) console.error('Supabase pet save error (stack edit):', error);
+      else group.forEach(p => dirtyPetIds.delete(p.id));
+    });
+  });
+
+  // Listens on the shared container (rather than petGrid alone) so the same
+  // drop behavior works on an ordinary pet card's image AND a Name Bank
+  // row — both carry the .image-assign-target marker and a data-pet-id.
+  petsMain.addEventListener('dragenter', (e) => {
+    const drop = e.target.closest('.image-assign-target');
     if (drop) e.preventDefault(); // required alongside dragover in some browsers for drop to actually fire
   });
-  petGrid.addEventListener('dragover', (e) => {
-    const drop = e.target.closest('.pet-img-stage');
+  petsMain.addEventListener('dragover', (e) => {
+    const drop = e.target.closest('.image-assign-target');
     if (drop) {
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
       drop.classList.add('drop-target-active');
     }
   });
-  petGrid.addEventListener('dragleave', (e) => {
-    const drop = e.target.closest('.pet-img-stage');
+  petsMain.addEventListener('dragleave', (e) => {
+    const drop = e.target.closest('.image-assign-target');
     if (drop) drop.classList.remove('drop-target-active');
   });
-  petGrid.addEventListener('drop', async (e) => {
-    const drop = e.target.closest('.pet-img-stage');
+  petsMain.addEventListener('drop', async (e) => {
+    const drop = e.target.closest('.image-assign-target');
     if (!drop) return;
     e.preventDefault();
     drop.classList.remove('drop-target-active');
@@ -2059,6 +3187,11 @@
     const img = stagedImages.find(i => i.id === imgId);
     const pet = pets.find(p => p.id === drop.dataset.petId);
     if (!img || !pet) { console.error('Pet card drop: could not resolve the dragged image or the target pet.', { imgId, petId: drop.dataset.petId }); return; }
+
+    // Same merge check as every other "assign this image" entry point —
+    // dropping straight onto a card is no longer a way to skip the warning
+    // that clicking/dragging inside the modal already gets.
+    if (!(await confirmImageMergeIfNeeded(petExistingImages(pet), img.src, pet.id))) return;
 
     // If this deck item is already a real Supabase Storage URL, this
     // resolves instantly with no network call. If it's still a local base64
@@ -2078,10 +3211,27 @@
     }
     if (url !== img.src) { img.src = url; saveImages(); renderDeck(); } // keep the deck thumbnail in sync with the now-uploaded URL too
 
-    pet.imageSrc = url; // single-image model: replaces whatever was assigned
+    // A Name Bank card (no picture at all beforehand) is the one drop
+    // scenario worth a toast: landing a picture on a bare name is a bigger
+    // moment than swapping an already-pictured pet's look, and it's easy to
+    // do by accident while dragging around the deck. Capture "before" state
+    // first so undo can put it straight back in the Name Bank.
+    const wasBankEntry = !pet.imageSrc;
+    const undoItem = { id: pet.id, imageSrc: pet.imageSrc, altImageSrcs: Array.isArray(pet.altImageSrcs) ? [...pet.altImageSrcs] : [] };
+    const claimants = wasBankEntry ? pets.filter(p => p.imageSrc === url && p.id !== pet.id) : [];
+
+    assignPetMainImage(pet, url); // non-destructive: any previous main image becomes a look instead of being discarded
     dirtyPetIds.add(pet.id);
     savePets();
     renderGrid();
+
+    if (wasBankEntry) {
+      showToast(claimants.length
+        ? `"${pet.name}" added to name stack`
+        : `Assigned a look to "${pet.name}"`);
+      lastDeleted = { type: 'bulk-unpair', items: [undoItem] }; // same undo shape as dismissClusterCandidate — restores imageSrc/altImageSrcs for one pet
+    }
+
     sbSavePetsToSettings(pets).then(({ error }) => {
       if (error) console.error('Supabase pet save error (image drag-and-drop):', error);
       else dirtyPetIds.delete(pet.id);
@@ -2125,6 +3275,7 @@
         hasMP: pet.hasMP,
         completed: pet.completed,
         imageSrc: null,
+        altImageSrcs: [],
         createdAt: Date.now()
       });
       savePets();
@@ -2142,7 +3293,72 @@
   const petModal = document.getElementById('petModal');
   const modalTitle = document.getElementById('modalTitle');
   const modalNameInput = document.getElementById('modalNameInput');
+  const modalOwnerInput = document.getElementById('modalOwnerInput');
+  const modalStatusFieldWrap = document.getElementById('modalStatusFieldWrap');
+  const modalAccountFieldWrap = document.getElementById('modalAccountFieldWrap');
+  const modalOwnerFieldWrap = document.getElementById('modalOwnerFieldWrap');
+  const modalOwnerCtaRow = document.getElementById('modalOwnerCtaRow');
+  const modalViewPetBtn = document.getElementById('modalViewPetBtn');
+  const modalViewPetpageBtn = document.getElementById('modalViewPetpageBtn');
+  const modalViewOwnerBtn = document.getElementById('modalViewOwnerBtn');
+
+  // Account and "Neopets owner" share one grid slot and are never shown
+  // together — which one appears (if either) follows directly from status:
+  // blank status means nothing is known yet, so Status is the only field
+  // that makes sense (full width, nothing to pair it with); "Own" doesn't
+  // need an owner override since the account already has it; anything else
+  // is exactly when knowing/looking up the current owner is useful. Scoped
+  // to editing an existing pet — a brand-new, not-yet-saved pet has no
+  // record yet for the owner shortcuts below to read or write, so it keeps
+  // the plain, unconditional layout instead.
+  function updateModalStatusDependentFields() {
+    // Independent of edit vs. new-pet mode below: "has morphing potion" and
+    // "completed on Neopets" only mean anything for a pet you actually own,
+    // so they stay out of the way for anything else regardless of which
+    // flow opened the modal.
+    modalCheckboxesWrap.classList.toggle('hidden', modalStatusSelect.value !== 'Own');
+
+    if (!editingId) {
+      modalStatusFieldWrap.classList.remove('col-span-2');
+      modalAccountFieldWrap.classList.remove('hidden');
+      modalOwnerFieldWrap.classList.add('hidden');
+      modalOwnerCtaRow.classList.add('hidden');
+      return;
+    }
+    const status = modalStatusSelect.value;
+    const isBlank = status === '';
+    const isOwn = status === 'Own';
+    const showOwnerFields = !isBlank && !isOwn;
+
+    modalStatusFieldWrap.classList.toggle('col-span-2', isBlank);
+    modalAccountFieldWrap.classList.toggle('hidden', isBlank || showOwnerFields);
+    modalOwnerFieldWrap.classList.toggle('hidden', !showOwnerFields);
+    modalOwnerCtaRow.classList.toggle('hidden', !showOwnerFields);
+  }
+  modalStatusSelect.addEventListener('change', updateModalStatusDependentFields);
+
+  modalViewPetBtn.addEventListener('click', () => {
+    if (!editingId) return;
+    const pet = pets.find(p => p.id === editingId);
+    if (pet) window.open(buildPetLookupUrl(pet.name), '_blank', 'noopener,noreferrer');
+  });
+  modalViewPetpageBtn.addEventListener('click', () => {
+    if (!editingId) return;
+    const pet = pets.find(p => p.id === editingId);
+    if (pet) window.open(buildPetPageUrl(pet.name), '_blank', 'noopener,noreferrer');
+  });
+  modalViewOwnerBtn.addEventListener('click', () => {
+    if (!editingId) return;
+    handleViewOwnerClick(editingId);
+  });
+
   const modalNotesInput = document.getElementById('modalNotesInput');
+  let modalNotesScrollTimer = null;
+  modalNotesInput.addEventListener('scroll', () => {
+    modalNotesInput.classList.add('is-scrolling');
+    clearTimeout(modalNotesScrollTimer);
+    modalNotesScrollTimer = setTimeout(() => modalNotesInput.classList.remove('is-scrolling'), 600);
+  });
   const modalMPCheckbox = document.getElementById('modalMPCheckbox');
   const modalCompletedCheckbox = document.getElementById('modalCompletedCheckbox');
   const modalStageImg = document.getElementById('modalStageImg');
@@ -2154,6 +3370,9 @@
   const modalSaveBtn = document.getElementById('modalSaveBtn');
   const modalSaveBtnDefaultLabel = modalSaveBtn.textContent;
   const modalCancelBtnEl = document.getElementById('modalCancelBtn');
+  const modalLeftColumn = document.getElementById('modalLeftColumn');
+  const modalCheckboxesWrap = document.getElementById('modalCheckboxesWrap');
+  const modalNameCountHint = document.getElementById('modalNameCountHint');
   let isModalSaving = false;
   function setModalSaveBtnLoading(loading) {
     isModalSaving = loading;
@@ -2166,21 +3385,221 @@
     if (modalCancelBtnEl) modalCancelBtnEl.disabled = loading;
   }
 
+  // Parses the name field into individual, non-empty names — one per line.
+  // A single line (the common case) is just that one name; pasting a list
+  // is how bulk creation is triggered (see modalSaveBtn's handler).
+  function parseModalNames() {
+    return modalNameInput.value.split('\n').map(s => s.trim()).filter(Boolean);
+  }
+
+  // Grows the name field as content is typed/pasted, but caps how tall it's
+  // allowed to get so a long pasted list can't dwarf the rest of the form.
+  // The cap is: the field's own normal (one-line) height, plus whatever room
+  // is left between the checkboxes below it and the bottom of the left
+  // column's thumbnail strip. In other words, the field is free to grow only
+  // as far as it can without pushing "Completed on Neopets" past where the
+  // thumbnails end — past that, it stops growing and scrolls internally
+  // instead. On narrow/stacked layouts (left column isn't actually beside
+  // the field) it falls back to a fixed, reasonable cap.
+  function resizeModalNameInput() {
+    const sideBySide = window.matchMedia('(min-width: 768px)').matches; // matches Tailwind's md: breakpoint used for the modal's grid-cols-2
+
+    // Reset to the field's native (rows="1") height first so the measurement
+    // below reflects its normal, unexpanded size — not whatever height a
+    // previous, larger paste left it at.
+    modalNameInput.style.height = '';
+    const naturalHeight = modalNameInput.getBoundingClientRect().height || 44;
+
+    let maxHeight = 200; // fallback cap for narrow/stacked layouts, or whenever the checkboxes below aren't currently shown
+    if (sideBySide && modalLeftColumn && modalCheckboxesWrap && !modalCheckboxesWrap.classList.contains('hidden')) {
+      const leftColumnBottom = modalLeftColumn.getBoundingClientRect().bottom;
+      const checkboxesBottom = modalCheckboxesWrap.getBoundingClientRect().bottom;
+      const budget = Math.max(0, leftColumnBottom - checkboxesBottom);
+      maxHeight = naturalHeight + budget;
+    }
+
+    modalNameInput.style.height = 'auto';
+    const desired = Math.min(modalNameInput.scrollHeight, maxHeight);
+    modalNameInput.style.height = desired + 'px';
+    modalNameInput.style.overflowY = modalNameInput.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  }
+
+  function updateModalNameCountHint() {
+    const names = parseModalNames();
+    if (names.length > 1 && !editingId) {
+      modalNameCountHint.textContent = `${names.length} pets will be created`;
+      modalNameCountHint.classList.remove('hidden');
+    } else if (names.length > 1 && editingId) {
+      modalNameCountHint.textContent = `Editing supports one name at a time — remove the extra lines to save`;
+      modalNameCountHint.classList.remove('hidden');
+    } else {
+      modalNameCountHint.classList.add('hidden');
+    }
+  }
+
+  modalNameInput.addEventListener('input', () => { resizeModalNameInput(); updateModalNameCountHint(); });
+  window.addEventListener('resize', () => {
+    if (petModal && !petModal.classList.contains('hidden')) resizeModalNameInput();
+  });
+
+  const modalLooksRow = document.getElementById('modalLooksRow');
+  const modalDeckPickerSection = document.getElementById('modalDeckPickerSection');
+
+  // Builds the single, ordered list this modal treats as "the pet's looks."
+  // Order comes straight from pendingLooksOrder and is NEVER reshuffled just
+  // because a different one becomes main — see the click handler below for
+  // why that matters. "main" here is purely a flag on whichever entry
+  // matches pendingImageSrc, not a position.
+  function getModalLooks() {
+    return pendingLooksOrder.map(src => ({ src, main: src === pendingImageSrc }));
+  }
+
+  // One row is the single source of truth for "what images does this pet
+  // have, and which one is showing big above." The current main image is
+  // marked with a MAIN badge (matching the "Main image" label over the
+  // preview, so the connection between the two is never a guess), clicking
+  // any other look swaps it to main, and the dashed "+" tile is the only
+  // way new images get added — deliberately, never as a side effect of
+  // clicking something else.
+  function renderModalLooksRow() {
+    const looks = getModalLooks();
+    const thumbs = looks.map((look, i) => `
+      <div class="relative shrink-0 group">
+        <img src="${look.src}" data-look-index="${i}" title="${look.main ? 'Main image' : 'Make this the main image'}"
+          class="w-[72px] h-[72px] object-cover rounded-lg border-2 cursor-pointer transition ${look.main ? 'border-teal ring-2 ring-teal' : 'border-[#E2E8E4] hover:border-teal'}">
+        ${look.main ? `<span class="absolute top-1 left-1 text-[8px] font-extrabold px-1.5 py-0.5 rounded-full bg-teal text-white leading-none shadow-sm pointer-events-none">MAIN</span>` : ''}
+        <button type="button" data-look-remove-index="${i}" title="Remove this look" aria-label="Remove this look"
+          class="absolute top-1 right-1 w-5 h-5 rounded-full bg-white border border-[#E2E8E4] text-[#8AA39A] hover:text-rose-600 hover:border-rose-300 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    `).join('');
+    const addTile = `
+      <button type="button" id="modalAddLookBtn" title="Add another look" aria-label="Add another look"
+        class="w-[72px] h-[72px] shrink-0 rounded-lg border-2 border-dashed border-[#D6EEE6] hover:border-teal hover:bg-sage/40 transition flex items-center justify-center text-[#9DB8AF]">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    `;
+    modalLooksRow.innerHTML = thumbs + addTile;
+    if (petModal && !petModal.classList.contains('hidden')) resizeModalNameInput();
+  }
+
+  function toggleModalDeckPickerSection(show) {
+    modalDeckPickerSection.classList.toggle('hidden', !show);
+    if (show) renderModalDeckPicker();
+    if (petModal && !petModal.classList.contains('hidden')) resizeModalNameInput();
+  }
+
+  modalLooksRow.addEventListener('click', (e) => {
+    if (e.target.closest('#modalAddLookBtn')) { toggleModalDeckPickerSection(true); return; }
+
+    const removeBtn = e.target.closest('[data-look-remove-index]');
+    if (removeBtn) {
+      const idx = parseInt(removeBtn.dataset.lookRemoveIndex, 10);
+      const removed = getModalLooks()[idx];
+      if (!removed) return;
+      const orderIdx = pendingLooksOrder.indexOf(removed.src);
+      if (orderIdx !== -1) pendingLooksOrder.splice(orderIdx, 1);
+      if (removed.main) {
+        // the main image was removed — whichever look now sits first in the
+        // (otherwise-untouched) order quietly takes over as main, so there's
+        // never a moment with looks left in the row but nothing marked MAIN
+        pendingImageSrc = pendingLooksOrder.length ? pendingLooksOrder[0] : null;
+      }
+      updateModalStage();
+      renderModalLooksRow();
+      refreshModalDeckPickerIfOpen(); // its "already your main image" highlight may now be stale
+      return;
+    }
+
+    const thumb = e.target.closest('[data-look-index]');
+    if (thumb) {
+      const idx = parseInt(thumb.dataset.lookIndex, 10);
+      const chosen = getModalLooks()[idx];
+      if (!chosen || chosen.main) return; // already main, nothing to do
+      // Just move the MAIN pointer — pendingLooksOrder itself is untouched,
+      // so every thumbnail stays exactly where it was. Only the badge moves.
+      // (Reshuffling main-first only happens once this is saved and the
+      // modal is reopened fresh — see openModal().)
+      pendingImageSrc = chosen.src;
+      updateModalStage();
+      renderModalLooksRow();
+      refreshModalDeckPickerIfOpen();
+    }
+  });
+
+  // Keeps the "Choose a look" deck's current-main highlight in sync on the
+  // rare path where it's left open (e.g. clicked "+" then, without picking
+  // anything, changed MAIN from the Looks row instead) rather than the
+  // usual close-after-pick flow.
+  function refreshModalDeckPickerIfOpen() {
+    if (!modalDeckPickerSection.classList.contains('hidden')) renderModalDeckPicker();
+  }
+
+  // The deck picker exists to answer one question — "which image do you
+  // want to add?" — so every click here is unambiguously an ADD: it's
+  // appended to the END of the order (everything else stays put) and
+  // immediately becomes MAIN, then the picker collapses back to the
+  // (now-updated) looks row so the result is obvious right away instead of
+  // leaving two open lists to compare. Whichever staged image is already
+  // this pet's current main image gets the same border+ring treatment as
+  // the MAIN thumbnail in the Looks row above, so scrolling this deck makes
+  // it obvious at a glance which one you're already using.
   function renderModalDeckPicker() {
     modalDeckPicker.innerHTML = stagedImages.map(img => `
       <img src="${img.src}" data-pick-img="${img.id}"
-        class="min-w-[80px] w-[80px] min-h-[80px] h-[80px] object-cover rounded-lg border cursor-pointer transition shrink-0 ${pendingImageSrc === img.src ? 'ring-2 ring-teal border-teal' : 'border-[#E2E8E4] hover:border-teal'}">
+        class="min-w-[72px] w-[72px] min-h-[72px] h-[72px] object-cover rounded-lg border-2 cursor-pointer transition shrink-0 ${img.src === pendingImageSrc ? 'border-teal ring-2 ring-teal' : 'border-[#E2E8E4] hover:border-teal'}">
     `).join('');
+    if (petModal && !petModal.classList.contains('hidden')) resizeModalNameInput();
   }
-  modalDeckPicker.addEventListener('click', (e) => {
+
+  // Shared core for every "does this image already belong to someone else"
+  // check in the app — the modal's add-a-look picker/paste, the direct
+  // drag-onto-card shortcut, and (eventually) dropping onto a Name Bank
+  // entry all fold into this one function so they warn identically. Takes
+  // the target pet's current images explicitly (rather than reading them
+  // itself) since the modal's in-progress pendingLooksOrder and a saved
+  // pet's actual imageSrc/altImageSrcs are two different sources of truth
+  // depending on which flow is calling in.
+  async function confirmImageMergeIfNeeded(existingSrcs, newSrc, excludePetId) {
+    if (!existingSrcs.length) return true; // this pet has no image yet at all — a plain first pick, not a merge
+    if (existingSrcs.includes(newSrc)) return true; // already one of this pet's own looks — just re-promoting it to main
+    const claimants = pets.filter(p => p.imageSrc === newSrc && p.id !== excludePetId);
+    if (!claimants.length) return true; // nobody else is using this image — nothing to warn about
+    const namesHtml = claimants.map(p => escapeHtml(p.name)).join(', ');
+    const subject = claimants.length > 1 ? 'The pets' : 'The pet';
+    const verb = claimants.length > 1 ? 'already use' : 'already uses';
+    return appConfirm(
+      `${subject} <b>${namesHtml}</b> ${verb} this look. Continuing will combine every look and name option onto one shared card — this pet's other saved looks will be hidden (not deleted) until you unpair them again.`,
+      { title: 'This image is already in use', okText: 'Continue and merge', html: true }
+    );
+  }
+
+  // Guards the one edge case that quietly confuses the "add a look" flow:
+  // this pet already has a look of its own going in, and the image just
+  // picked for a NEW look turns out to already be some other pet's image.
+  // Since adding a look immediately promotes it to MAIN, that silently
+  // folds this pet into that other pet's name stack — its own other looks
+  // stop being shown (though they're still saved), and if this pet later
+  // loses the "keep this one" pick, it can look like it lost its picture.
+  // Only fires on a genuine ADD-on-top; picking an existing image for a
+  // pet's very first look is the normal, expected way to add another name
+  // candidate to a stack, so that path stays silent.
+  function confirmLookMergeIfNeeded(newSrc) {
+    return confirmImageMergeIfNeeded(pendingLooksOrder, newSrc, editingId);
+  }
+
+  modalDeckPicker.addEventListener('click', async (e) => {
     const el = e.target.closest('[data-pick-img]');
     if (!el) return;
     const img = stagedImages.find(i => i.id === el.dataset.pickImg);
-    if (img) {
-      pendingImageSrc = (pendingImageSrc === img.src) ? null : img.src;
-      updateModalStage();
-      renderModalDeckPicker();
-    }
+    if (!img) return;
+    if (!(await confirmLookMergeIfNeeded(img.src))) return;
+    if (!pendingLooksOrder.includes(img.src)) pendingLooksOrder.push(img.src);
+    pendingImageSrc = img.src;
+    updateModalStage();
+    renderModalLooksRow();
+    toggleModalDeckPickerSection(false);
   });
 
   function updateModalStage() {
@@ -2188,29 +3607,44 @@
       modalStageImg.src = pendingImageSrc;
       modalStageImg.classList.remove('hidden');
       modalStagePlaceholder.classList.add('hidden');
+      modalStagePlaceholder.classList.remove('flex');
       modalRemoveImageBtn.classList.remove('hidden');
     } else {
       modalStageImg.classList.add('hidden');
       modalStagePlaceholder.classList.remove('hidden');
+      modalStagePlaceholder.classList.add('flex');
       modalRemoveImageBtn.classList.add('hidden');
     }
   }
 
   modalRemoveImageBtn.addEventListener('click', () => {
-    pendingImageSrc = null; updateModalStage(); renderModalDeckPicker();
+    if (pendingImageSrc) {
+      const idx = pendingLooksOrder.indexOf(pendingImageSrc);
+      if (idx !== -1) pendingLooksOrder.splice(idx, 1);
+    }
+    pendingImageSrc = pendingLooksOrder.length ? pendingLooksOrder[0] : null;
+    updateModalStage();
+    renderModalLooksRow();
   });
 
-  // drop a staged thumbnail directly onto the large preview stage (replaces current)
+  // drop a staged thumbnail directly onto the large preview stage — same
+  // "add and promote to main" behavior as picking one from the deck section
   ['dragover', 'dragenter'].forEach(ev => modalStage.addEventListener(ev, (e) => {
     e.preventDefault(); modalStage.classList.add('drop-target-active');
   }));
   ['dragleave', 'dragend'].forEach(ev => modalStage.addEventListener(ev, () => modalStage.classList.remove('drop-target-active')));
-  modalStage.addEventListener('drop', (e) => {
+  modalStage.addEventListener('drop', async (e) => {
     e.preventDefault();
     modalStage.classList.remove('drop-target-active');
     const imgId = e.dataTransfer.getData('text/plain');
     const img = stagedImages.find(i => i.id === imgId);
-    if (img) { pendingImageSrc = img.src; updateModalStage(); renderModalDeckPicker(); }
+    if (!img) return;
+    if (!(await confirmLookMergeIfNeeded(img.src))) return;
+    if (!pendingLooksOrder.includes(img.src)) pendingLooksOrder.push(img.src);
+    pendingImageSrc = img.src;
+    updateModalStage();
+    renderModalLooksRow();
+    toggleModalDeckPickerSection(false);
   });
 
   async function openModal(petId) {
@@ -2223,20 +3657,33 @@
 
     modalTitle.textContent = pet ? 'Edit pet' : 'Add pet name';
     modalNameInput.value = pet ? pet.name : '';
+    modalNameInput.classList.remove('border-rose-400');
     modalNotesInput.value = pet ? (pet.notes || '') : '';
+    modalOwnerInput.value = pet ? (pet.owner || '') : '';
     renderModalTagOptions();
     modalAccountSelect.value = pet ? (pet.account || '') : '';
     modalStatusSelect.value = pet ? (pet.status || '') : '';
+    updateModalStatusDependentFields();
     modalMPCheckbox.checked = pet ? !!pet.hasMP : false;
     modalCompletedCheckbox.checked = pet ? !!pet.completed : false;
     pendingImageSrc = pet ? (pet.imageSrc || null) : null;
+    // Rebuilt fresh from storage every time the modal opens — main image
+    // first, then alts in their saved order. This is the ONE moment
+    // main-first reordering happens; from here on, order only changes
+    // through explicit add/remove (see modalLooksRow's click handler).
+    pendingLooksOrder = pet
+      ? [...new Set([pet.imageSrc, ...(Array.isArray(pet.altImageSrcs) ? pet.altImageSrcs : [])].filter(Boolean))]
+      : [];
     modalDeleteBtn.classList.toggle('hidden', !pet);
 
     updateModalStage();
-    renderModalDeckPicker();
+    renderModalLooksRow();
+    toggleModalDeckPickerSection(false);
 
     showModalEl(petModal);
-    setTimeout(() => modalNameInput.focus(), 30);
+    resizeModalNameInput();
+    updateModalNameCountHint();
+    setTimeout(() => { modalNameInput.focus(); resizeModalNameInput(); }, 30);
   }
 
   function closeModal() {
@@ -2244,6 +3691,7 @@
     hideModalEl(petModal);
     editingId = null;
     pendingImageSrc = null;
+    pendingLooksOrder = [];
   }
 
   document.getElementById('addPetBtn').addEventListener('click', () => openModal(null));
@@ -2258,38 +3706,57 @@
   });
 
   modalSaveBtn.addEventListener('click', async () => {
-    const name = modalNameInput.value.trim();
-    if (!name) { modalNameInput.focus(); modalNameInput.classList.add('border-rose-400'); return; }
+    const names = parseModalNames();
+    if (!names.length) { modalNameInput.focus(); modalNameInput.classList.add('border-rose-400'); return; }
+    if (editingId && names.length > 1) {
+      // Editing is always exactly one pet — a multi-line paste here is
+      // ambiguous (rename this one pet to what?), so refuse rather than
+      // silently use just the first line or silently create new pets from
+      // an edit session. Nothing is lost: the extra lines stay in the field.
+      modalNameInput.focus();
+      modalNameInput.classList.add('border-rose-400');
+      updateModalNameCountHint();
+      return;
+    }
     modalNameInput.classList.remove('border-rose-400');
 
-    // ---- 0. Resolve the image FIRST, strictly, before anything gets
-    // written anywhere. If it's still a local base64 fallback (the deck's
-    // own upload attempt didn't reach Supabase Storage), upload it now and
-    // wait for the real public URL. A pet is never saved — locally or
-    // remotely — carrying a raw data: URL as its "final" image: that's what
-    // was letting a pet with an image look saved in the moment but vanish
-    // on refresh, since the database never actually got a usable image_url
-    // and the local copy could also silently fail to persist if the base64
-    // blew past the localStorage quota.
-    let finalImageSrc = pendingImageSrc || null;
-    if (finalImageSrc && finalImageSrc.startsWith('data:')) {
+    // ---- 0. Resolve every look (main + alts) FIRST, strictly, before
+    // anything gets written anywhere. If one is still a local base64
+    // fallback (the deck's own upload attempt didn't reach Supabase
+    // Storage), upload it now and wait for the real public URL. A pet is
+    // never saved — locally or remotely — carrying a raw data: URL as its
+    // "final" image: that's what was letting a pet with an image look saved
+    // in the moment but vanish on refresh, since the database never
+    // actually got a usable image_url and the local copy could also
+    // silently fail to persist if the base64 blew past the localStorage
+    // quota. Resolved once in pendingLooksOrder's stable order, then split
+    // into the two persisted fields (imageSrc / altImageSrcs) at the very
+    // end — this also means the same image never gets uploaded twice even
+    // if it somehow ended up referenced from both places.
+    const resolvedLooksOrder = [];
+    for (const src of pendingLooksOrder) {
+      if (!src) continue;
+      if (!src.startsWith('data:')) { resolvedLooksOrder.push(src); continue; }
       setModalSaveBtnLoading(true);
-      const { url, error } = await resolveImageForStorage(finalImageSrc);
+      const { url, error } = await resolveImageForStorage(src);
       setModalSaveBtnLoading(false);
       if (error || !url) {
-        console.error('Supabase Storage Upload Error:', error);
-        showToast("Couldn't upload that image — check your connection and try again, or remove the image to save without one.");
+        console.error('Supabase Storage Upload Error (look):', error);
+        showToast("Couldn't upload one of this pet's looks — check your connection and try again, or remove it to save without it.");
         return; // nothing is written; the form stays open with everything the user typed intact
       }
       // keep the deck thumbnail in sync too, so future picks/drags for any
       // pet use the real URL instead of the local blob
-      const stagedMatch = stagedImages.find(i => i.src === finalImageSrc);
+      const stagedMatch = stagedImages.find(i => i.src === src);
       if (stagedMatch) { stagedMatch.src = url; saveImages(); renderDeck(); }
-      finalImageSrc = url;
-      pendingImageSrc = url;
+      if (src === pendingImageSrc) pendingImageSrc = url; // keep the MAIN pointer aimed at the now-resolved URL
+      resolvedLooksOrder.push(url);
     }
+    pendingLooksOrder = resolvedLooksOrder;
+    const finalImageSrc = pendingImageSrc || null;
+    const finalAltImageSrcs = pendingLooksOrder.filter(src => src !== finalImageSrc);
 
-    let savedPet;
+    let savedPets = [];
 
     // ---- 1. Local, optimistic save. By this point finalImageSrc is
     // guaranteed to be either null or a real (already-uploaded) URL, never
@@ -2307,38 +3774,49 @@
           closeModal();
           return;
         }
-        pet.name = name;
+        pet.name = names[0];
         pet.account = modalAccountSelect.value || null;
         pet.status = modalStatusSelect.value || null;
+        pet.owner = modalOwnerInput.value.trim() || null;
         pet.notes = modalNotesInput.value.trim();
         pet.hasMP = modalMPCheckbox.checked;
         pet.completed = modalCompletedCheckbox.checked;
         pet.imageSrc = finalImageSrc;
-        savedPet = pet;
+        pet.altImageSrcs = finalAltImageSrcs;
+        savedPets = [pet];
       } else {
-        savedPet = {
+        // One name is just the ordinary single-add case; more than one
+        // bulk-creates that many independent pets sharing the same image
+        // and tags entered on the form. Each is fully independent from the
+        // moment it's created — see the architecture discussion above for
+        // why this deliberately doesn't keep them linked afterward.
+        const baseCreatedAt = Date.now();
+        const newPets = names.map((name, i) => ({
           id: genId(),
           name,
           account: modalAccountSelect.value || null,
           status: modalStatusSelect.value || null,
+          owner: modalOwnerInput.value.trim() || null,
           notes: modalNotesInput.value.trim(),
           hasMP: modalMPCheckbox.checked,
           completed: modalCompletedCheckbox.checked,
           imageSrc: finalImageSrc,
-          createdAt: Date.now()
-        };
-        pets.unshift(savedPet);
+          altImageSrcs: [...finalAltImageSrcs],
+          createdAt: baseCreatedAt - i // preserves reading order (top line = newest) under the default "last added first" sort
+        }));
+        pets.unshift(...newPets);
+        savedPets = newPets;
       }
 
-      // mark this pet as locally dirty until a remote sync actually
-      // confirms it, so a late-resolving startup fetch (or a failed sync
-      // below) can't clobber it
-      dirtyPetIds.add(savedPet.id);
+      // mark these pets as locally dirty until a remote sync actually
+      // confirms them, so a late-resolving startup fetch (or a failed sync
+      // below) can't clobber them
+      savedPets.forEach(p => dirtyPetIds.add(p.id));
 
       savePets(); // local cache (localStorage) + schedules the debounced batch sync
       renderGrid();
       closeModal();
-      showSaveToast();
+      showSaveToast(savedPets.length > 1 ? `${savedPets.length} pets added` : undefined);
     } catch (err) {
       console.error('Failed to save pet:', err);
       showToast('Something went wrong saving that pet — please try again.');
@@ -2358,7 +3836,7 @@
       if (error) {
         console.error('Supabase pet save error:', error);
       } else {
-        dirtyPetIds.delete(savedPet.id);
+        savedPets.forEach(p => dirtyPetIds.delete(p.id));
       }
     });
   });
@@ -2384,6 +3862,124 @@
     showToast(`"${data.name}" removed`);
     renderGrid();
   }
+
+  // ---------- search for a Neopet (no tracker entry required) ----------
+  // A lighter-weight sibling to the full pet modal: look up a single name's
+  // lookup/petpage/owner links on the fly, with an optional one-click path
+  // into the Name Bank if it turns out to be worth keeping. Nothing here
+  // touches `pets` unless "Save to Name Bank" is actually clicked.
+  const searchNeopetModal = document.getElementById('searchNeopetModal');
+  const searchNeopetNameInput = document.getElementById('searchNeopetNameInput');
+  const searchNeopetOwnerInput = document.getElementById('searchNeopetOwnerInput');
+  const searchNeopetOwnerHint = document.getElementById('searchNeopetOwnerHint');
+  const searchNeopetCtaRow = document.getElementById('searchNeopetCtaRow');
+  const searchNeopetToggleBankBtn = document.getElementById('searchNeopetToggleBankBtn');
+  const searchNeopetToggleBankIcon = document.getElementById('searchNeopetToggleBankIcon');
+  const searchNeopetToggleBankLabel = document.getElementById('searchNeopetToggleBankLabel');
+  const searchNeopetBankFields = document.getElementById('searchNeopetBankFields');
+  const searchNeopetStatusSelect = document.getElementById('searchNeopetStatusSelect');
+  const searchNeopetAccountSelect = document.getElementById('searchNeopetAccountSelect');
+  const searchNeopetNotesInput = document.getElementById('searchNeopetNotesInput');
+
+  function clearSearchNeopetOwnerHint() {
+    searchNeopetOwnerInput.classList.remove('border-rose-400', 'ring-2', 'ring-rose-200');
+    searchNeopetOwnerHint.classList.add('hidden');
+  }
+
+  function openSearchNeopetModal() {
+    searchNeopetNameInput.value = '';
+    searchNeopetOwnerInput.value = '';
+    clearSearchNeopetOwnerHint();
+    searchNeopetCtaRow.classList.add('hidden');
+    searchNeopetBankFields.classList.add('hidden');
+    searchNeopetToggleBankIcon.classList.remove('rotate-45');
+    searchNeopetToggleBankLabel.textContent = 'Add name';
+    searchNeopetStatusSelect.innerHTML = '<option value="">None</option>' + STATUSES.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    searchNeopetAccountSelect.innerHTML = '<option value="">None</option>' + ACCOUNTS.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+    searchNeopetNotesInput.value = '';
+    showModalEl(searchNeopetModal);
+    setTimeout(() => searchNeopetNameInput.focus(), 30);
+  }
+  function closeSearchNeopetModal() { hideModalEl(searchNeopetModal); }
+
+  document.getElementById('searchNeopetBtn').addEventListener('click', openSearchNeopetModal);
+  document.getElementById('searchNeopetCloseX').addEventListener('click', closeSearchNeopetModal);
+  searchNeopetModal.addEventListener('click', (e) => { if (e.target === searchNeopetModal) closeSearchNeopetModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !searchNeopetModal.classList.contains('hidden')) closeSearchNeopetModal();
+  });
+
+  // The three lookup buttons just read whatever's currently typed — no
+  // separate "search" submit step, so they always reflect the live name.
+  searchNeopetNameInput.addEventListener('input', () => {
+    searchNeopetCtaRow.classList.toggle('hidden', !searchNeopetNameInput.value.trim());
+  });
+  searchNeopetOwnerInput.addEventListener('input', clearSearchNeopetOwnerHint);
+
+  document.getElementById('searchNeopetViewPetBtn').addEventListener('click', () => {
+    const name = searchNeopetNameInput.value.trim();
+    if (name) window.open(buildPetLookupUrl(name), '_blank', 'noopener,noreferrer');
+  });
+  document.getElementById('searchNeopetViewPetpageBtn').addEventListener('click', () => {
+    const name = searchNeopetNameInput.value.trim();
+    if (name) window.open(buildPetPageUrl(name), '_blank', 'noopener,noreferrer');
+  });
+  document.getElementById('searchNeopetViewOwnerBtn').addEventListener('click', () => {
+    const name = searchNeopetNameInput.value.trim();
+    if (!name) return;
+    const owner = searchNeopetOwnerInput.value.trim();
+    if (!owner) {
+      // No modal-on-modal prompt here — there's no pet record to save
+      // to yet, so just point at the field that needs filling in.
+      searchNeopetOwnerInput.focus();
+      searchNeopetOwnerInput.classList.add('border-rose-400', 'ring-2', 'ring-rose-200');
+      searchNeopetOwnerHint.classList.remove('hidden');
+      return;
+    }
+    window.open(buildOwnerLookupUrl(owner), '_blank', 'noopener,noreferrer');
+  });
+
+  // The "+"/"Add name" toggle becomes an "×"/"Cancel" close control once the
+  // extra fields are showing — same rotate-45-turns-plus-into-times trick
+  // used for the "add a look" tile elsewhere in the app.
+  searchNeopetToggleBankBtn.addEventListener('click', () => {
+    const opening = searchNeopetBankFields.classList.contains('hidden');
+    searchNeopetBankFields.classList.toggle('hidden', !opening);
+    searchNeopetToggleBankIcon.classList.toggle('rotate-45', opening);
+    searchNeopetToggleBankLabel.textContent = opening ? 'Cancel' : 'Add name';
+  });
+
+  document.getElementById('searchNeopetSaveBtn').addEventListener('click', async () => {
+    const name = searchNeopetNameInput.value.trim();
+    if (!name) { searchNeopetNameInput.focus(); return; }
+    if (!isUnlocked) {
+      await promptEnterPin();
+      if (!isUnlocked) return;
+    }
+    const newPet = {
+      id: genId(),
+      name,
+      account: searchNeopetAccountSelect.value || null,
+      status: searchNeopetStatusSelect.value || null,
+      notes: searchNeopetNotesInput.value.trim(),
+      owner: searchNeopetOwnerInput.value.trim() || null,
+      hasMP: false,
+      completed: false,
+      imageSrc: null,
+      altImageSrcs: [],
+      createdAt: Date.now()
+    };
+    pets.unshift(newPet);
+    dirtyPetIds.add(newPet.id);
+    savePets();
+    renderGrid();
+    closeSearchNeopetModal();
+    showToast(`"${name}" added to the Name Bank`);
+    sbSavePetsToSettings(pets).then(({ error }) => {
+      if (error) console.error('Supabase pet save error (search-and-add):', error);
+      else dirtyPetIds.delete(newPet.id);
+    });
+  });
 
   // ---------- edit tags modal ----------
   const tagsModal = document.getElementById('tagsModal');
@@ -2763,7 +4359,14 @@
 
     previewItems = [...groups.entries()]
       .map(([name, list]) => {
-        const images = [...new Set(list.map(p => p.imageSrc).filter(Boolean))];
+        // Every candidate image for this name — whether it comes from
+        // several pet records sharing this name (the older pattern) or from
+        // one record's own altImageSrcs (the newer, consolidated pattern) —
+        // gets merged into the same pool here, so both keep working
+        // side by side with no migration needed.
+        const images = [...new Set(
+          list.flatMap(p => [p.imageSrc, ...(Array.isArray(p.altImageSrcs) ? p.altImageSrcs : [])]).filter(Boolean)
+        )];
         // a name is "rostered" if any underlying record for it is benched —
         // stagingStatus lives on the pet record itself, so it survives
         // account re-tagging automatically (see migratePets)
@@ -2774,6 +4377,10 @@
         const selectedIndex = images.length ? Math.min(rawIndex, images.length - 1) : 0;
         return { name, images, staging, selectedIndex };
       })
+      // A name with no image anywhere is a Name Bank entry, not a showcase
+      // item — there's nothing to render, so it never reaches Preview
+      // (it used to surface here as a broken "No render" placeholder).
+      .filter(item => item.images.length > 0)
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 
     const activeItems = isPrimaryView ? previewItems.filter(i => i.staging !== 'roster') : previewItems;
@@ -3040,7 +4647,8 @@
       theme: currentLookup.theme,
       petpet: currentLookup.petpet,
       description: currentLookup.description,
-      mediaUrl: currentLookup.mediaUrl
+      mediaUrl: currentLookup.mediaUrl,
+      activeMediaId: currentLookup.activeMediaId // which render (.webm/.mp4/image) is on the stage — without this, a switch never survives a reload
     };
     clearTimeout(lookupSaveTimer);
     lookupSaveTimer = setTimeout(() => { idbSetLookup(name, snapshot); }, 250);
@@ -3962,7 +5570,7 @@
       const isActive = m.id === currentActiveMediaId;
       return `
         <div class="relative p-0.5">
-          <button type="button" data-media-select="${m.id}" class="w-20 h-20 rounded-lg overflow-hidden transition block bg-sage/40 ${isActive ? 'ring-2 ring-[#008B9E]' : 'border-2 border-transparent hover:border-teal'}">
+          <button type="button" data-media-select="${m.id}" class="w-20 h-20 rounded-lg overflow-hidden transition block bg-sage/40 ${isActive ? 'ring-2 media-switch-thumb-active' : 'border-2 border-transparent hover:border-teal'}">
             ${buildMediaThumbCell(m)}
           </button>
           ${isUnlocked ? `<button type="button" data-media-delete="${m.id}" class="absolute top-1.5 right-1.5 w-5 h-5 bg-black/75 hover:bg-rose-600 text-white rounded-full flex items-center justify-center text-[10px] transition-colors shadow-sm z-10">&times;</button>` : ''}
@@ -4181,7 +5789,8 @@
       theme: Object.assign({}, DEFAULT_LOOKUP_THEME, (stored && stored.theme && typeof stored.theme === 'object') ? stored.theme : {}),
       petpet: Object.assign({ name: 'Petpet', color: '', species: '', imageUrl: '' }, (stored && stored.petpet && typeof stored.petpet === 'object') ? stored.petpet : {}),
       description: (stored && typeof stored.description === 'string') ? stored.description : '',
-      mediaUrl: (stored && typeof stored.mediaUrl === 'string') ? stored.mediaUrl : ''
+      mediaUrl: (stored && typeof stored.mediaUrl === 'string') ? stored.mediaUrl : '',
+      activeMediaId: (stored && typeof stored.activeMediaId === 'string') ? stored.activeMediaId : ''
     };
     ensureCurrentLookup(); // final safety pass — guarantees every field is well-formed
 
@@ -4216,6 +5825,7 @@
     );
     if (typeof currentLookup.description !== 'string') currentLookup.description = '';
     if (typeof currentLookup.mediaUrl !== 'string') currentLookup.mediaUrl = '';
+    if (typeof currentLookup.activeMediaId !== 'string') currentLookup.activeMediaId = '';
     return currentLookup;
   }
 
@@ -4481,8 +6091,11 @@
   }
 
   const saveToast = document.getElementById('saveToast');
+  const saveToastText = document.getElementById('saveToastText');
+  const saveToastDefaultText = saveToastText.textContent;
   let saveToastTimer = null;
-  function showSaveToast() {
+  function showSaveToast(message) {
+    saveToastText.textContent = message || saveToastDefaultText;
     clearTimeout(saveToastTimer);
     saveToast.classList.remove('hidden');
     saveToast.classList.add('flex');
@@ -4497,9 +6110,23 @@
     if (lastDeleted.type === 'pet') {
       pets.splice(Math.min(lastDeleted.index, pets.length), 0, lastDeleted.data);
       savePets(); renderGrid();
+    } else if (lastDeleted.type === 'bulk-unpair') {
+      const items = lastDeleted.items; // captured now — hideToast() below resets lastDeleted to null before this branch's async sync call resolves
+      items.forEach(item => {
+        const pet = pets.find(p => p.id === item.id);
+        if (pet) { pet.imageSrc = item.imageSrc; pet.altImageSrcs = item.altImageSrcs || []; dirtyPetIds.add(pet.id); }
+      });
+      savePets(); renderGrid();
+      sbSavePetsToSettings(pets).then(({ error }) => {
+        if (error) console.error('Supabase pet save error (undo pick winner):', error);
+        else items.forEach(item => dirtyPetIds.delete(item.id));
+      });
     } else if (lastDeleted.type === 'image') {
       stagedImages.splice(Math.min(lastDeleted.index, stagedImages.length), 0, lastDeleted.data);
       saveImages(); renderDeck(); renderGrid();
+    } else if (lastDeleted.type === 'wishlist-image') {
+      wishlistImages.splice(Math.min(lastDeleted.index, wishlistImages.length), 0, lastDeleted.data);
+      saveWishlistImages(); renderWishlist();
     } else if (lastDeleted.type === 'media') {
       try {
         const rec = lastDeleted.data;
@@ -4549,7 +6176,7 @@
   // ---------- export / import ----------
   menuExportBtn.addEventListener('click', () => {
     settingsMenu.classList.add('hidden');
-    const backup = { pets, stagedImages, accounts: ACCOUNTS, statuses: STATUSES, exportedAt: new Date().toISOString() };
+    const backup = { pets, stagedImages, wishlistImages, accounts: ACCOUNTS, statuses: STATUSES, exportedAt: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -4581,9 +6208,12 @@
         if (!ok) return;
         pets = migratePets(data.pets);
         stagedImages = data.stagedImages;
+        // older backups predate the wishlist — falling back to an empty
+        // list rather than rejecting the whole file as invalid
+        wishlistImages = Array.isArray(data.wishlistImages) ? data.wishlistImages : [];
         if (Array.isArray(data.accounts) && data.accounts.length) ACCOUNTS = data.accounts;
         if (Array.isArray(data.statuses) && data.statuses.length) STATUSES = data.statuses;
-        savePets(); saveImages(); saveTags();
+        savePets(); saveImages(); saveWishlistImages(); saveTags();
         filters = { search: '', accounts: new Set(), statuses: new Set(), imageSrc: null, mp: false, showCompleted: false };
         searchInput.value = '';
         mpFilterBtn.classList.remove('active');
@@ -4777,36 +6407,51 @@
     const remoteSettings = await sbFetchSettings();
     const remotePets = (remoteSettings && Array.isArray(remoteSettings[PETS_SETTINGS_KEY])) ? remoteSettings[PETS_SETTINGS_KEY] : null;
 
-    if (remotePets && remotePets.length > 0) {
-      // Reconcile rather than overwrite. This fetch started at page load
-      // and can resolve well after the user has already added or edited a
-      // pet (see modalSaveBtn's click handler) — a plain `pets = remotePets`
-      // here would silently discard that change the instant this promise
-      // resolves, which is exactly the "Save changes does nothing" bug:
-      // the pet would flash into the grid and then disappear. Any pet that
-      // doesn't exist in the remote list yet, or that's still marked dirty
-      // (saved locally but not yet confirmed synced), is kept; everything
-      // else defers to the remote copy.
-      const remoteById = new Map(remotePets.map(p => [p.id, p]));
-      const localKeep = pets.filter(p => !remoteById.has(p.id) || dirtyPetIds.has(p.id));
-      const remoteKeep = remotePets.filter(p => !localKeep.some(lp => lp.id === p.id));
-      pets = migratePets([...localKeep, ...remoteKeep]);
-      localStorage.setItem(STORAGE_PETS, JSON.stringify(pets));
-      changed = true;
+    // Everything in this block used to run unguarded. An uncaught error
+    // here — e.g. the plain localStorage.setItem() below throwing
+    // QuotaExceededError, which it did in production — aborted the whole
+    // function before `bootstrapDone = true` (further down) ever ran. Since
+    // sbSavePetsToSettings() refuses to sync anything until bootstrapDone
+    // is true, that one uncaught exception silently disabled ALL further
+    // cloud saving for the rest of the session: pets would still add
+    // locally and look fine, but nothing ever reached Supabase, and
+    // whatever didn't fit in localStorage either was gone on next refresh.
+    // try/catch + the finally block below make sure that can't happen
+    // again, regardless of what goes wrong in here.
+    try {
+      if (remotePets && remotePets.length > 0) {
+        changed = true; // set up front so the UI still refreshes with whatever succeeds below, even if something in here throws
+        // Reconcile rather than overwrite. This fetch started at page load
+        // and can resolve well after the user has already added or edited a
+        // pet (see modalSaveBtn's click handler) — a plain `pets = remotePets`
+        // here would silently discard that change the instant this promise
+        // resolves, which is exactly the "Save changes does nothing" bug:
+        // the pet would flash into the grid and then disappear. Any pet that
+        // doesn't exist in the remote list yet, or that's still marked dirty
+        // (saved locally but not yet confirmed synced), is kept; everything
+        // else defers to the remote copy.
+        const remoteById = new Map(remotePets.map(p => [p.id, p]));
+        const localKeep = pets.filter(p => !remoteById.has(p.id) || dirtyPetIds.has(p.id));
+        const remoteKeep = remotePets.filter(p => !localKeep.some(lp => lp.id === p.id));
+        pets = migratePets([...localKeep, ...remoteKeep]); // also strips any leftover base64 images — see migratePets
+        safeLocalStorageSet(STORAGE_PETS, JSON.stringify(pets));
+      }
+    } catch (e) {
+      console.error('Unexpected error while merging pets from Supabase — continuing with local data only:', e);
+    } finally {
+      // `pets` at this point reflects the fully reconciled local state — any
+      // add/edit/delete made while the fetch above was in flight is already
+      // folded in (JS is single-threaded, so nothing but other event
+      // handlers could have run during that await, and they mutate this same
+      // array directly). Flip the gate and push it: this seeds the cloud if
+      // it was empty, pushes the merge result if there was one, and flushes
+      // anything that tried to sync while this was in flight — including a
+      // legitimate empty array if the user deleted their last pet in that
+      // window. Doing this in `finally` guarantees it happens even if the
+      // merge above threw.
+      bootstrapDone = true;
+      sbSavePetsToSettings(pets);
     }
-    // `pets` at this point reflects the fully reconciled local state — any
-    // add/edit/delete made while the fetch above was in flight is already
-    // folded in (JS is single-threaded, so nothing but other event
-    // handlers could have run during that await, and they mutate this same
-    // array directly). Flip the gate and push it: this seeds the cloud if
-    // it was empty, pushes the merge result if there was one, and flushes
-    // anything that tried to sync while this was in flight — including a
-    // legitimate empty array if the user deleted their last pet in that
-    // window. sbSavePetsToSettings() itself is a no-op if `pets` already
-    // exactly matches what bootstrapDone-gated calls would have sent
-    // anyway, so this is safe to call unconditionally.
-    bootstrapDone = true;
-    sbSavePetsToSettings(pets);
 
     if (remoteSettings) {
       if (Array.isArray(remoteSettings.accounts) && remoteSettings.accounts.length) {
@@ -4823,7 +6468,7 @@
       }
       if (Array.isArray(remoteSettings.hidden_accounts)) {
         HIDDEN_ACCOUNTS = new Set(remoteSettings.hidden_accounts);
-        localStorage.setItem(STORAGE_HIDDEN_ACCOUNTS, JSON.stringify([...HIDDEN_ACCOUNTS]));
+        safeLocalStorageSet(STORAGE_HIDDEN_ACCOUNTS, JSON.stringify([...HIDDEN_ACCOUNTS]));
         changed = true;
       } else if (HIDDEN_ACCOUNTS.size) {
         sbSaveSetting('hidden_accounts', [...HIDDEN_ACCOUNTS]);
@@ -4842,8 +6487,8 @@
     }
 
     if (changed) {
-      localStorage.setItem(STORAGE_ACCOUNTS, JSON.stringify(ACCOUNTS));
-      localStorage.setItem(STORAGE_STATUSES, JSON.stringify(STATUSES));
+      safeLocalStorageSet(STORAGE_ACCOUNTS, JSON.stringify(ACCOUNTS));
+      safeLocalStorageSet(STORAGE_STATUSES, JSON.stringify(STATUSES));
       previewAccount = getDefaultPreviewAccount();
       renderFilterPills();
       renderModalTagOptions();
@@ -4865,6 +6510,7 @@
   setPreviewDensity(4);
   renderDeck();
   renderGrid();
+  renderWishlist();
   applyLockUI(); // reflects whatever was restored from localStorage above (or the locked default for a first visit)
   let savedAppTheme = 'slate';
   try { savedAppTheme = localStorage.getItem(STORAGE_APP_THEME) || 'slate'; } catch (e) {}
