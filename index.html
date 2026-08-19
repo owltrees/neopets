@@ -528,6 +528,23 @@
   body.theme-classic .hover\:bg-forestlight:hover {
     background-color: #334155 !important; /* slate-700 — noticeably lighter mid-slate tone, clearly visible on hover */
   }
+  /* "Show more"/"Show less" in the image deck, and the inline "Search"/
+     "View" links inside the Pet name and Neopets owner inputs, keep the
+     same tealdark→forest link styling used everywhere else (untouched, so
+     Theme 1 looks exactly as it always has) — but against Theme 2's base
+     color above (#111827, already near-black), hovering to forest
+     (#011F14, also near-black) reads as barely any visible change at all.
+     Scoped to just these specific links rather than touching
+     .hover\:text-forest globally, which plenty of other elements rely on
+     keeping as-is. slate-700 (#334155, used elsewhere in this theme as its
+     "hover against an already-dark base" shade) still didn't read as
+     enough contrast here, so this goes lighter still — slate-500 — for a
+     hover state that's unmistakable against near-black. */
+  body.theme-classic #deckShowMoreBtn:hover,
+  body.theme-classic #deckShowLessBtn:hover,
+  body.theme-classic #modalNameSearchBtn:hover,
+  body.theme-classic #modalOwnerViewBtn:hover,
+  body.theme-classic #searchNeopetViewOwnerBtn:hover { color: #64748B !important; }
   body.theme-classic .border-teal,
   body.theme-classic .border-t-teal,
   body.theme-classic .hover\:border-teal:hover { border-color: #000000 !important; }
@@ -717,8 +734,8 @@
       <!-- search -->
       <div class="relative shrink-0">
         <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-[#8AA39A]" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input id="searchInput" type="text" placeholder="Search your names"
-          class="transition-all duration-300 w-[180px] focus:w-[300px] pl-8 pr-3 py-2 rounded-xl border border-[#E2E8E4] text-sm bg-white text-forest placeholder:text-[#8AA39A]">
+        <input id="searchInput" type="text" placeholder="Search names"
+          class="transition-all duration-300 w-[140px] focus:w-[300px] pl-8 pr-3 py-2 rounded-xl border border-[#E2E8E4] text-sm bg-white text-forest placeholder:text-[#8AA39A]">
       </div>
 
       <!-- Mobile-only: everything below (status pills, Needs MP, Show
@@ -732,7 +749,17 @@
         <svg id="mobileFiltersToggleIcon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="transition-transform shrink-0"><path d="M6 9l6 6 6-6"/></svg>
       </button>
 
-      <div id="filterBarCollapsible" class="hidden sm:flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+      <!-- "sm:contents" (not "sm:flex") is deliberate: it makes this div's
+           own box disappear from layout at sm+ while its children become
+           direct participants in filterBarRow's flex-wrap above, so pills
+           wrap individually alongside the search input as space runs out —
+           a plain "sm:flex" instead would make this whole group one atomic
+           box from filterBarRow's point of view, so the instant ANY pill
+           didn't fit, the entire group (search input's only sibling) would
+           jump to its own line together, wasting the empty space next to
+           search rather than filling it. Below sm, still a normal
+           hidden/flex toggle for the mobile "Show filters" collapse. -->
+      <div id="filterBarCollapsible" class="hidden sm:contents flex-wrap items-center gap-2.5 w-full sm:w-auto">
         <div class="hidden sm:block h-6 w-px bg-[#E2E8E4] shrink-0"></div>
 
         <!-- status pills, first -->
@@ -802,13 +829,57 @@
 
       <p id="deckDragHint" class="text-[11px] text-[#8AA39A] leading-relaxed shrink-0">Drag a thumbnail onto any pet card or Name Bank entry to assign it.</p>
 
-      <!-- thumbnails: independently scrollable -->
+      <!-- thumbnails: independently scrollable. -->
       <div class="flex flex-col min-h-0 flex-1">
         <h3 id="imageDeckSubhead" class="text-xs font-bold tracking-wide text-[#6E8880] mb-2 shrink-0">Filter by image</h3>
         <div id="deckEmpty" class="text-xs text-[#8AA39A] text-center py-4 border border-dashed border-[#E2E8E4] rounded-xl">
           No pet looks yet.
         </div>
-        <div id="deckGrid" class="deck-scroll grid grid-cols-3 gap-3 w-full overflow-y-auto flex-1 min-h-0 content-start p-1 -m-1"></div>
+
+        <!-- "relative" scoped to JUST deckGrid, not the whole column —
+             deckGridFade's "bottom-0" needs to land on deckGrid's own
+             bottom edge (the real scroll boundary). An earlier version put
+             "relative" on the outer column instead, which also contains
+             deckShowLessBtn below; the fade's bottom-0 then aligned with
+             the OUTER wrapper's bottom (after the button, not after
+             deckGrid), landing squarely over "Show less" instead of over
+             the actual thumbnail/blank-space boundary — and since
+             positioned elements paint above static in-flow siblings
+             regardless of DOM order, it visually washed the button out
+             rather than sitting harmlessly behind it. -->
+        <div class="relative flex-1 min-h-0">
+          <div id="deckGrid" class="deck-scroll grid grid-cols-3 gap-3 w-full h-full overflow-y-auto content-start p-1 -m-1"></div>
+
+          <!-- Purely decorative — fades whatever's scrolled into view right
+               at deckGrid's bottom edge. This is NOT the same overlay that
+               used to cause the sliver bug: that one wrapped "Show less"
+               itself, so it had to line up exactly with the true last
+               thumbnail or the button would sit on top of (and partially
+               hide) real content. This one does nothing but fade pixels —
+               there's no button inside it and nothing it needs to "clear",
+               so it can sit over whichever thumbnail happens to be at the
+               boundary without ever creating a functional problem. -->
+          <div id="deckGridFade" class="hidden absolute bottom-0 left-0 right-0 h-9 bg-gradient-to-t from-white to-transparent pointer-events-none transition-opacity duration-200"></div>
+        </div>
+
+        <!-- Sits as a normal sibling right after deckGrid's wrapper — NOT
+             layered on top of anything. An earlier version floated this
+             over deckGrid's own bottom edge so it stayed reachable without
+             scrolling all the way down, but at rest (right after clicking
+             "Show more", before any manual scrolling) that overlay always
+             landed mid-list rather than at the true end, exposing a sliver
+             of whatever row happened to fall at that boundary — a
+             structural problem with floating a control on top of
+             scrollable content, not something fixable by adjusting
+             padding/positioning further. Sitting below the scroll area
+             instead makes that class of bug impossible: there's nothing
+             for it to overlap, and it's still always visible without
+             scrolling to the bottom, since it's outside the scrollable box
+             entirely rather than pinned inside it. -->
+        <button id="deckShowLessBtn" type="button" class="hidden shrink-0 w-full flex items-center justify-center gap-1 text-xs font-bold text-tealdark hover:text-forest pt-2 pb-0.5 transition">
+          Show less
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="rotate-180"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
       </div>
     </div>
   </aside>
@@ -1641,6 +1712,12 @@
   }
   let pets = migratePets(loadJSON(STORAGE_PETS, loadLegacyPets()));
   let stagedImages = loadJSON(STORAGE_IMAGES, []);
+  // Whether the image deck sidebar is showing all thumbnails or just the
+  // first handful — declared up here (rather than alongside the rest of
+  // the deck's code further down) so it already exists by the time
+  // syncDeckAsideHeight can reference it; that function runs once
+  // immediately on script load, well before the deck section below it.
+  let deckExpanded = false;
   // Un-customized reference pics — species/color ideas with no name or
   // finished look attached yet. Kept in its own list (not just a flag on
   // stagedImages) so it never gets mixed into the fast, small-thumbnail
@@ -2226,7 +2303,13 @@
   let deckHeightRaf = null;
   function syncDeckAsideHeight() {
     if (!imageDeckAside) return;
-    if (window.innerWidth < 1024) { imageDeckAside.style.height = ''; return; }
+    // Collapsed (just the first 6 thumbnails), the deck should hug its own
+    // content instead of stretching to fill the viewport — there's nothing
+    // below it worth reserving all that empty space for. Clearing the
+    // inline height lets it size naturally. It only gets pinned to the
+    // available viewport height once actually expanded, which is also the
+    // only state where the thumbnails need their own internal scroll.
+    if (window.innerWidth < 1024 || !deckExpanded) { imageDeckAside.style.height = ''; return; }
     const top = imageDeckAside.getBoundingClientRect().top;
     imageDeckAside.style.height = Math.max(window.innerHeight - top - DECK_GAP, 240) + 'px';
   }
@@ -2237,6 +2320,12 @@
   function syncDeckAside() { syncDeckTopOffset(); syncDeckAsideHeight(); }
   syncDeckAside();
   window.addEventListener('resize', syncDeckAside);
+  // Keeps the overlay-vs-plain-button treatment above in sync if the
+  // window gets resized across the 1024px breakpoint while the deck
+  // happens to be expanded (e.g. going from a wide window to a narrow
+  // one) — renderDeck is safe to call here even though it's defined
+  // further down, since this only runs later, on an actual resize event.
+  window.addEventListener('resize', () => { if (deckExpanded) renderDeck(); });
   window.addEventListener('scroll', scheduleDeckHeightSync, { passive: true });
   if (window.ResizeObserver) new ResizeObserver(syncDeckAside).observe(filterBar);
 
@@ -2280,12 +2369,23 @@
   const deckDragHint = document.getElementById('deckDragHint');
   const imageDeckTitle = document.getElementById('imageDeckTitle');
   const imageDeckSubhead = document.getElementById('imageDeckSubhead');
+  const deckShowLessBtn = document.getElementById('deckShowLessBtn');
+  const deckGridFade = document.getElementById('deckGridFade');
+  const DECK_COLLAPSED_COUNT = 6;
+  deckShowLessBtn.addEventListener('click', () => { deckExpanded = false; renderDeck(); });
 
   let deckScrollTimer = null;
   deckGrid.addEventListener('scroll', () => {
     deckGrid.classList.add('is-scrolling');
     clearTimeout(deckScrollTimer);
     deckScrollTimer = setTimeout(() => deckGrid.classList.remove('is-scrolling'), 600);
+    // Once scrolled all the way down there's nothing left below to hint
+    // at, so the fade drops out instead of sitting there permanently.
+    // 2px slack for sub-pixel rounding at the exact bottom.
+    if (!deckGridFade.classList.contains('hidden')) {
+      const atBottom = deckGrid.scrollTop + deckGrid.clientHeight >= deckGrid.scrollHeight - 2;
+      deckGridFade.style.opacity = atBottom ? '0' : '1';
+    }
   });
 
   // Same "invisible until hovered/scrolled" treatment for the Add/Edit Pet
@@ -2308,7 +2408,12 @@
       deckDragHint.textContent = isUnlocked ? 'Drag a thumbnail onto any pet card to assign it.' : '';
       deckDragHint.classList.toggle('hidden', !isUnlocked);
     }
-    deckGrid.innerHTML = stagedImages.map(img => `
+    // Past a handful of thumbnails the deck can get quite tall very fast —
+    // collapsed to the first 6 by default, with the rest tucked behind a
+    // "Show more" toggle rather than always rendering the full pile.
+    const hasMore = stagedImages.length > DECK_COLLAPSED_COUNT;
+    const visibleImages = (deckExpanded || !hasMore) ? stagedImages : stagedImages.slice(0, DECK_COLLAPSED_COUNT);
+    const thumbsHtml = visibleImages.map(img => `
       <div class="thumb-wrap group w-full">
         <img src="${img.src}" draggable="${isUnlocked ? 'true' : 'false'}" data-img-id="${img.id}"
           class="deck-thumb w-full aspect-square object-cover rounded-xl border border-[#E2E8E4] cursor-pointer transition ${filters.imageSrc === img.src ? 'ring-2 ring-teal' : ''}"
@@ -2318,10 +2423,36 @@
         </button>
       </div>
     `).join('');
+    // Collapsed "Show more" sits as a normal row at the end of the grid.
+    // Expanded "Show less" is a separate element entirely, below deckGrid
+    // rather than inside it — see the markup comment on deckShowLessBtn
+    // for why it's not layered on top of the scrollable area.
+    const showMoreHtml = (hasMore && !deckExpanded) ? `
+      <button id="deckShowMoreBtn" type="button" class="col-span-3 flex items-center justify-center gap-1 text-xs font-bold text-tealdark hover:text-forest pt-1.5 pb-1 transition">
+        Show ${stagedImages.length - DECK_COLLAPSED_COUNT} more
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="transition-transform"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+    ` : '';
+    deckGrid.innerHTML = thumbsHtml + showMoreHtml;
+    deckShowLessBtn.classList.toggle('hidden', !(hasMore && deckExpanded));
+    // Collapsed vs. expanded changes whether the deck should hug its
+    // content or fill the viewport — see syncDeckAsideHeight. Runs before
+    // the fade check below so deckGrid's clientHeight already reflects
+    // whatever height it just settled into.
+    syncDeckAsideHeight();
+    // Only fades when there's actually something to scroll to — no point
+    // hinting at more content below when everything already fits. Opacity
+    // resets fresh each render (the scroll listener below fades it out
+    // once you reach the true bottom, and that inline value would
+    // otherwise linger stale across a later collapse/re-expand).
+    deckGridFade.style.opacity = '';
+    deckGridFade.classList.toggle('hidden', !(hasMore && deckExpanded && deckGrid.scrollHeight > deckGrid.clientHeight));
     renderModalDeckPicker();
   }
 
   deckGrid.addEventListener('click', (e) => {
+    const showMoreBtn = e.target.closest('#deckShowMoreBtn');
+    if (showMoreBtn) { deckExpanded = true; renderDeck(); return; }
     const delBtn = e.target.closest('[data-del-img]');
     if (delBtn) { deleteImage(delBtn.dataset.delImg); return; }
     const thumb = e.target.closest('.deck-thumb');
@@ -2628,6 +2759,13 @@
       clearFiltersBtn.classList.add('opacity-0');
       setTimeout(() => { if (clearFiltersBtn.classList.contains('opacity-0')) clearFiltersBtn.classList.add('hidden'); }, 200);
     }
+    // "Edit" (tags) and "Clear filters" occupy the same spot in the row's
+    // budget — trading one for the other when a filter's active is what
+    // keeps everything on one line instead of wrapping once "Clear
+    // filters" appears alongside it. Edit is also separately gated on
+    // isUnlocked elsewhere; this only ever hides it further, never shows
+    // it while locked.
+    if (editTagsBtn) editTagsBtn.classList.toggle('hidden', active || !isUnlocked);
   }
 
   // Groups the already-filtered/sorted list into display units: a lone pet
@@ -2694,7 +2832,10 @@
     );
     const rows = sortedGroup.map(pet => `
       <div class="cluster-candidate-row flex items-center justify-between gap-1 px-2.5 py-1.5 hover:bg-sage/60 cursor-pointer border-t border-[#E2E8E4]" data-cluster-pet-id="${pet.id}">
-        <span class="text-xs font-semibold text-forest truncate">${escapeHtml(pet.name)}</span>
+        <span class="flex items-center gap-1 min-w-0">
+          <span class="text-xs font-semibold text-forest truncate">${escapeHtml(pet.name)}</span>
+          ${pet.status === 'Untaken' ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1.5" class="shrink-0" title="Untaken"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7-5.4-4.7 7.1-.6L12 2z"/></svg>` : ''}
+        </span>
         ${isUnlocked ? `
           <div class="flex items-center gap-0.5 shrink-0">
             <button data-dismiss-candidate="${pet.id}" title="Doesn't fit — send back to the Name Bank" class="w-5 h-5 flex items-center justify-center rounded-full text-[#8AA39A] hover:text-white hover:bg-rose-500 transition">
