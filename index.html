@@ -3005,44 +3005,6 @@
     deleteWishlistImage(id);
   });
 
-  // First click on "View owner" for a pet with no saved owner yet asks for
-  // the username once (there's no way to fetch it automatically — Neopets
-  // doesn't allow this page to read its pages cross-origin) and saves it
-  // straight onto the pet record, the same field the "Neopets owner" input
-  // in the pet modal edits. Every click after that just opens the link —
-  // no repeat prompting. Saving is a write, so it goes through the same
-  // "prompt for the PIN if locked" gate as opening the edit modal; opening
-  // an already-saved link stays available read-only regardless of lock.
-  async function handleViewOwnerClick(petId) {
-    const pet = pets.find(p => p.id === petId);
-    if (!pet) return;
-    if (pet.owner) {
-      window.open(buildOwnerLookupUrl(pet.owner), '_blank', 'noopener,noreferrer');
-      return;
-    }
-    if (!isUnlocked) {
-      await promptEnterPin();
-      if (!isUnlocked) return; // user cancelled or entered the wrong PIN
-    }
-    const entered = await appPrompt(
-      `Who owns "${pet.name}" on Neopets right now?`,
-      { title: "Enter the owner's username", okText: 'Save & open', placeholder: 'Neopets username' }
-    );
-    if (!entered) return; // cancelled — nothing saved, nothing opened
-    pet.owner = entered;
-    dirtyPetIds.add(pet.id);
-    savePets();
-    renderGrid();
-    // keep the open pet modal's own input in sync if this was triggered
-    // from its "View owner" button rather than the Name Bank card
-    if (editingId === pet.id && petModal && !petModal.classList.contains('hidden')) modalOwnerInput.value = entered;
-    sbSavePetsToSettings(pets).then(({ error }) => {
-      if (error) console.error('Supabase pet save error (set owner from Name Bank):', error);
-      else dirtyPetIds.delete(pet.id);
-    });
-    window.open(buildOwnerLookupUrl(pet.owner), '_blank', 'noopener,noreferrer');
-  }
-
   // Delegated listener for the expanded candidate list's scrollbar: since
   // that panel's markup is torn down and rebuilt on every render (rather
   // than existing once in the page), a per-element listener would need to
@@ -3510,12 +3472,17 @@
     copyOwnerToClipboard(modalOwnerInput.value.trim());
   });
 
-  // These read the live form fields (not a saved pet record), so they work
-  // identically whether adding a brand-new pet or editing an existing one.
-  // View owner is the one exception: while editing, it defers to
-  // handleViewOwnerClick so a first-time owner set still gets saved onto
-  // the pet record the same way it always has; a not-yet-saved pet has no
-  // record to write to, so it just opens the link off whatever's typed.
+  // All three read the live form fields directly (not a saved pet record),
+  // so they work identically whether adding a brand-new pet or editing an
+  // existing one, and always reflect whatever's currently typed even if it
+  // hasn't been saved yet. View owner used to defer to a separate
+  // "prompt for username" flow while editing, which read the pet's saved
+  // owner rather than this field — harmless once saved, but it meant a
+  // freshly-typed owner that hadn't been saved yet still looked unset to
+  // it, popping the prompt again right on top of the value already sitting
+  // in the field. This button is only ever visible once the field has
+  // something in it (see updateModalOwnerDependentButtons), so there's
+  // nothing left to prompt for — reading it directly is always correct.
   modalViewPetBtn.addEventListener('click', () => {
     const name = modalNameInput.value.trim();
     if (name) window.open(buildPetLookupUrl(name), '_blank', 'noopener,noreferrer');
@@ -3525,10 +3492,10 @@
     if (name) window.open(buildPetPageUrl(name), '_blank', 'noopener,noreferrer');
   });
   modalViewOwnerBtn.addEventListener('click', () => {
-    if (editingId) { handleViewOwnerClick(editingId); return; }
     const owner = modalOwnerInput.value.trim();
     if (owner) window.open(buildOwnerLookupUrl(owner), '_blank', 'noopener,noreferrer');
   });
+
 
   const modalNotesInput = document.getElementById('modalNotesInput');
   let modalNotesScrollTimer = null;
