@@ -1505,6 +1505,17 @@
   // one JSON value under the key 'pets_data', field names and all (no
   // snake_case/camelCase mapping needed either).
   const PETS_SETTINGS_KEY = 'pets_data';
+  // Text-only mirror of each pet lookup (colors/theme, petpet name+species,
+  // description) keyed by pet name — see buildSyncedLookupEntry for exactly
+  // what's excluded and why. Separate from PETS_SETTINGS_KEY since it's a
+  // different shape/concern, same as how this app already keeps accounts,
+  // statuses, and the pets list as separate settings rows rather than one
+  // giant blob.
+  const LOOKUPS_SETTINGS_KEY = 'pet_lookups';
+  // Mirrors the local `neo_media_cloud_urls_v1` map (see saveMediaCloudUrl)
+  // so a device that never uploaded a given render can still discover it
+  // was uploaded from elsewhere and stream it from Supabase.
+  const MEDIA_CLOUD_SETTINGS_KEY = 'media_cloud_urls';
   // Set once bootstrapFromSupabase() has fetched and merged with whatever
   // was already remote. Before that, `pets` might be empty (a fresh device
   // with nothing cached locally yet) or missing pets that only exist
@@ -1524,6 +1535,50 @@
     if (!supabase) return;
     clearTimeout(petSyncTimer);
     petSyncTimer = setTimeout(() => { sbSavePetsToSettings(pets); }, 400);
+  }
+  // In-memory mirror of the text-only version of every pet lookup (colors,
+  // petpet name/species, description) that's allowed to leave this device —
+  // see buildSyncedLookupEntry for exactly what's excluded. Built fresh from
+  // IndexedDB at bootstrap (idbGetAllLookups) and kept in sync incrementally
+  // after that as persistLookup runs, rather than re-scanning IndexedDB on
+  // every save, since a settings push always needs the FULL map (same
+  // one-row-per-key shape as pets_data), not just whichever pet just changed.
+  let syncedLookups = {};
+  let lookupSyncTimer = null;
+  function sbSyncLookupsDebounced() {
+    if (!supabase || !bootstrapDone) return; // same gate as pets — see bootstrapFromSupabase
+    clearTimeout(lookupSyncTimer);
+    lookupSyncTimer = setTimeout(() => { sbSaveSetting(LOOKUPS_SETTINGS_KEY, syncedLookups); }, 400);
+  }
+  // Strips <img> tags out of a description before it's allowed to leave
+  // this device — pasted images stay local-only (IndexedDB), by design: see
+  // the conversation that led here. Only the text/formatting syncs.
+  function stripImagesFromHTML(html) {
+    if (!html) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    tmp.querySelectorAll('img').forEach((img) => img.remove());
+    return tmp.innerHTML;
+  }
+  // Builds the text-only payload for one pet's lookup — the thing that
+  // actually leaves this device. Petpet's own image gets the same
+  // local-only treatment as description images when it's a pasted data:
+  // URL (the only way it can be — see the paste handler in armPetpetPaste's
+  // section — nothing about petpet images ever uploads to Storage), for the
+  // same reason: syncing it as-is would mean shipping a raw base64 blob
+  // through the settings table on every save.
+  function buildSyncedLookupEntry(snapshot) {
+    const petpetImg = snapshot.petpet && snapshot.petpet.imageUrl;
+    return {
+      theme: snapshot.theme || {},
+      petpet: {
+        name: (snapshot.petpet && snapshot.petpet.name) || '',
+        species: (snapshot.petpet && snapshot.petpet.species) || '',
+        imageUrl: (petpetImg && !petpetImg.startsWith('data:')) ? petpetImg : ''
+      },
+      description: stripImagesFromHTML(snapshot.description || ''),
+      savedAt: Date.now()
+    };
   }
   // Resolves whatever image src is about to be attached to a pet into
   // something safe to persist. If it's already a real URL (a prior
@@ -1622,6 +1677,37 @@
     } catch (e) { console.error('Supabase Storage Upload Error:', e); return null; }
   }
 
+  // sbUploadAsset only ever hands back a public URL, not the underlying
+  // Storage path — this reconstructs the path from that URL so a video can
+  // be removed from Storage later without having to separately track both.
+  // Relies on the fixed getPublicUrl() shape (.../object/public/pet-assets/<path>),
+  // which is stable for as long as this app targets the 'pet-assets' bucket.
+  function storagePathFromPublicUrl(url) {
+    if (!url) return null;
+    const marker = '/object/public/pet-assets/';
+    const idx = url.indexOf(marker);
+    if (idx === -1) return null;
+    try { return decodeURIComponent(url.slice(idx + marker.length)); } catch (e) { return null; }
+  }
+
+  // Removes one file from Storage — the counterpart to sbUploadAsset, used
+  // when a render is actually deleted (the X/delete button on an entry in
+  // the switch list), never just because a different render became active.
+  // Switching active renders keeps every earlier upload intact so they stay
+  // available to switch back to; only an explicit delete should free the
+  // Storage space.
+  async function sbDeleteAsset(path) {
+    if (!supabase || !path) return { error: null };
+    try {
+      const { error } = await supabase.storage.from('pet-assets').remove([path]);
+      if (error) throw error;
+      return { error: null };
+    } catch (e) {
+      console.error('Supabase Storage Delete Error:', e);
+      return { error: e };
+    }
+  }
+
   // Converts a base64 data: URL back into a File so an image that only
   // ever made it to the local base64 fallback can be uploaded to Supabase
   // Storage on demand (see resolveImageForStorage).
@@ -1653,9 +1739,28 @@
     map[mediaKey] = map[mediaKey].filter(e => e.id !== entryId);
     map[mediaKey].push({ id: entryId, url, mime: mime || '' });
     try { localStorage.setItem(STORAGE_MEDIA_CLOUD_URLS, JSON.stringify(map)); } catch (e) {}
+    sbSyncMediaCloudUrlsDebounced();
   }
   function getMediaCloudEntries(mediaKey) {
     return getMediaCloudMap()[mediaKey] || [];
+  }
+  // The other half of saveMediaCloudUrl — drops one entry once its Storage
+  // file has actually been deleted (see deleteMediaEntry), so this map
+  // never points at a URL that no longer exists.
+  function removeMediaCloudUrl(mediaKey, entryId) {
+    if (!mediaKey) return;
+    const map = getMediaCloudMap();
+    if (!map[mediaKey]) return;
+    map[mediaKey] = map[mediaKey].filter(e => e.id !== entryId);
+    if (!map[mediaKey].length) delete map[mediaKey];
+    try { localStorage.setItem(STORAGE_MEDIA_CLOUD_URLS, JSON.stringify(map)); } catch (e) {}
+    sbSyncMediaCloudUrlsDebounced();
+  }
+  let mediaCloudSyncTimer = null;
+  function sbSyncMediaCloudUrlsDebounced() {
+    if (!supabase || !bootstrapDone) return; // same gate as pets — see bootstrapFromSupabase
+    clearTimeout(mediaCloudSyncTimer);
+    mediaCloudSyncTimer = setTimeout(() => { sbSaveSetting(MEDIA_CLOUD_SETTINGS_KEY, getMediaCloudMap()); }, 400);
   }
 
   // ---- admin PIN (Web Crypto SHA-256) ----
@@ -1728,6 +1833,19 @@
   // Which visual clusters (keyed by the shared imageSrc) are currently
   // expanded in the grid. Transient UI state only — never persisted.
   let expandedClusters = new Set();
+  // The one image (if any) whose cluster should render as individual pet
+  // cards instead of collapsing into a single stacked card — set by "View
+  // all" (see the data-cluster-view-all handler). Deliberately separate
+  // from filters.imageSrc, even though "View all" sets both to the same
+  // value: filters.imageSrc alone already has an existing, unrelated use
+  // (clicking a deck thumbnail to filter the grid by that image), and that
+  // path was never meant to also blow a cluster open into 36 cards — only
+  // this dedicated trigger should. Cleared automatically in renderGrid
+  // whenever it no longer matches the active image filter, so every
+  // existing way of clearing that filter (the "Filtering by image" banner's
+  // X, Clear filters, or re-clicking the same deck thumbnail) also exits
+  // this view for free, with nothing extra to wire up per entry point.
+  let expandedClusterSrc = null;
   let sortMode = 'newest';
   let editingId = null;
   let pendingImageSrc = null;
@@ -1953,6 +2071,22 @@
         tx.onerror = () => reject(tx.error);
       });
     } catch (e) { return false; }
+  }
+  // Reads every saved lookup at once — used only at bootstrap, to build the
+  // full text-only payload that gets compared against and merged with
+  // whatever's already in Supabase (see bootstrapFromSupabase). Everyday
+  // saves go through idbSetLookup/persistLookup instead; this is a one-time
+  // full scan, not part of the normal save path.
+  async function idbGetAllLookups() {
+    try {
+      const db = await openVideoDB();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(LOOKUP_STORE, 'readonly');
+        const req = tx.objectStore(LOOKUP_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) { return []; }
   }
 
   // ---------- shared modal open/close transitions ----------
@@ -2773,10 +2907,17 @@
   // not pets sharing the same non-null imageSrc collapse into one cluster,
   // positioned wherever the first member of that image would have sorted.
   // Purely a render-time grouping — pets stay fully independent records.
+  // Exception: pets whose imageSrc matches expandedClusterSrc ("View all"
+  // on a cluster card) skip clustering entirely and each render as their
+  // own singleton group, regardless of how many others share that image.
   function groupPetsForDisplay(list) {
     const groupIndexBySrc = new Map();
     const groups = [];
     list.forEach(pet => {
+      if (pet.imageSrc && pet.imageSrc === expandedClusterSrc) {
+        groups.push([pet]);
+        return;
+      }
       if (pet.imageSrc && groupIndexBySrc.has(pet.imageSrc)) {
         groups[groupIndexBySrc.get(pet.imageSrc)].push(pet);
       } else {
@@ -2883,10 +3024,14 @@
         <div class="cluster-stack-layer cluster-stack-layer-1 absolute inset-0 bg-white border border-[#E2E8E4] opacity-70 pointer-events-none" style="transform:translate(6px,6px)"></div>
         <div class="cluster-stack-layer cluster-stack-layer-2 absolute inset-0 bg-white border border-[#E2E8E4] opacity-40 pointer-events-none" style="transform:translate(12px,12px)"></div>
         <div class="cluster-card-face relative bg-white border border-[#E2E8E4] shadow-card card-hover overflow-hidden">
-          <div class="w-full block bg-sage overflow-hidden relative pet-img-stage${isUnlocked ? ' cursor-pointer' : ''}"
+          <div class="w-full block bg-sage overflow-hidden relative pet-img-stage group${isUnlocked ? ' cursor-pointer' : ''}"
             ${isUnlocked ? `data-cluster-edit="${escapeHtml(src)}" title="Edit image or tags for all ${group.length}" aria-label="Edit image or tags for every candidate in this stack"` : ''}>
             <img src="${src}" class="w-full h-full object-cover pointer-events-none" alt="">
             <span class="absolute top-2 left-2 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-forest/85 text-white leading-none pointer-events-none">${group.length} candidates</span>
+            <button type="button" data-cluster-view-all="${escapeHtml(src)}" title="View all ${group.length} as individual cards"
+              class="absolute top-2 right-2 z-10 w-6 h-6 rounded-full bg-forest text-white flex items-center justify-center shadow border-2 border-white cursor-pointer opacity-0 group-hover:opacity-100 transition">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </button>
           </div>
           <div class="p-3 flex items-center justify-between gap-1 cursor-pointer hover:bg-sage/50 transition" data-cluster-toggle="${escapeHtml(src)}">
             <span class="text-xs font-bold text-forest truncate">${group.length} name options</span>
@@ -2929,6 +3074,12 @@
   }
 
   function renderGrid() {
+    // Self-correcting rather than hunted down at every place filters.imageSrc
+    // can change: if it no longer matches what "View all" expanded, drop the
+    // bypass too. This is what makes the existing "clear image filter"
+    // entry points (this banner's X, Clear filters, re-clicking the same
+    // deck thumbnail) also exit the expanded-cluster view for free.
+    if (expandedClusterSrc && filters.imageSrc !== expandedClusterSrc) expandedClusterSrc = null;
     updateClearFiltersVisibility();
     if (filters.imageSrc) {
       imageFilterBanner.classList.remove('hidden'); imageFilterBanner.classList.add('flex');
@@ -3239,6 +3390,21 @@
     if (dismissBtn) { e.stopPropagation(); dismissClusterCandidate(dismissBtn.dataset.dismissCandidate); return; }
     const pickBtn = e.target.closest('[data-pick-winner]');
     if (pickBtn) { e.stopPropagation(); pickClusterWinner(pickBtn.dataset.pickWinner); return; }
+    // Checked BEFORE data-cluster-edit below: the "View all" button lives
+    // nested inside that same image-stage container (so the rest of the
+    // stage still opens the bulk editor as normal), which means a click on
+    // it also matches closest('[data-cluster-edit]') on the way up. Without
+    // this check running first, that ancestor match would win and open the
+    // bulk editor instead of ever reaching the View all logic below.
+    const viewAllBtn = e.target.closest('[data-cluster-view-all]');
+    if (viewAllBtn) {
+      e.stopPropagation();
+      const src = viewAllBtn.dataset.clusterViewAll;
+      filters.imageSrc = src;
+      expandedClusterSrc = src; // bypasses clustering for just this image — see groupPetsForDisplay
+      renderGrid();
+      return;
+    }
     const editBtn = e.target.closest('[data-cluster-edit]');
     if (editBtn) { e.stopPropagation(); openStackEditModal(editBtn.dataset.clusterEdit); return; }
     const clusterToggle = e.target.closest('[data-cluster-toggle]');
@@ -3487,6 +3653,12 @@
     // dropping straight onto a card is no longer a way to skip the warning
     // that clicking/dragging inside the modal already gets.
     if (!(await confirmImageMergeIfNeeded(petExistingImages(pet), img.src, pet.id))) return;
+    // The reverse-direction warning — this pet might currently be part of
+    // a DIFFERENT shared stack (e.g. one of the "View all" candidates from
+    // a cluster card) that it's about to leave. Checked separately since
+    // it's an independent concern from the merge check above: a drop can
+    // trigger either, both, or neither depending on the old and new image.
+    if (!(await confirmUnbindIfNeeded(pet, img.src))) return;
 
     // If this deck item is already a real Supabase Storage URL, this
     // resolves instantly with no network call. If it's still a local base64
@@ -3927,6 +4099,23 @@
     );
   }
 
+  // The reverse direction from confirmImageMergeIfNeeded above: that one
+  // warns about a pet JOINING a shared stack, this one warns about a pet
+  // LEAVING one it's already part of. Silent if the pet has no image yet,
+  // the "new" image is the same one it already has (not really a change),
+  // or nobody currently shares its image (nothing to unbind from).
+  async function confirmUnbindIfNeeded(pet, newSrc) {
+    if (!pet.imageSrc || pet.imageSrc === newSrc) return true;
+    const clusterMates = pets.filter(p => p.imageSrc === pet.imageSrc && p.id !== pet.id);
+    if (!clusterMates.length) return true;
+    const namesHtml = clusterMates.map(p => escapeHtml(p.name)).join(', ');
+    const pronoun = clusterMates.length > 1 ? 'They' : 'It';
+    return appConfirm(
+      `<b>${escapeHtml(pet.name)}</b> currently shares its image with <b>${namesHtml}</b>. Changing its image will unbind just this pet from that stack — ${pronoun.toLowerCase()} stay right where they are; this one moves onto its own separate card.`,
+      { title: 'This pet is part of a shared stack', okText: 'Continue and unbind', html: true }
+    );
+  }
+
   // Guards the one edge case that quietly confuses the "add a look" flow:
   // this pet already has a look of its own going in, and the image just
   // picked for a NEW look turns out to already be some other pet's image.
@@ -4130,6 +4319,13 @@
           closeModal();
           return;
         }
+        // Same reverse-direction warning as the drag-onto-card shortcut
+        // (see confirmUnbindIfNeeded) — picking a different main image
+        // here is a second way to leave a shared stack, so it needs the
+        // same check. Runs before any field gets touched below: a cancel
+        // here needs to leave the pet completely untouched, not partially
+        // updated with everything except the image.
+        if (!(await confirmUnbindIfNeeded(pet, finalImageSrc))) return;
         pet.name = names[0];
         pet.account = modalAccountSelect.value || null;
         pet.status = modalStatusSelect.value || null;
@@ -4665,13 +4861,36 @@
   // also only draggable in the "All accounts" master view, since that's the
   // only view with a Pet roster to bench them into.
   let previewIsPrimaryView = false;
+  // The image actually showing on a card right now — same fallback chain
+  // used when building the card itself, factored out so the duplicate-image
+  // isolate/restore feature (renderPreview, handlePreviewGridClick) can
+  // compare "what's currently displayed" across cards without duplicating
+  // this logic.
+  function primaryImageOf(item) {
+    const idx = Math.min(Math.max(item.selectedIndex || 0, 0), item.images.length - 1);
+    return item.images[idx] || item.images[0] || null;
+  }
+
   function buildPreviewCardHTML(item, idx, isRoster) {
     const hasMultiple = item.images.length > 1;
     const selectedIdx = Math.min(Math.max(item.selectedIndex || 0, 0), item.images.length - 1);
     const primary = item.images[selectedIdx] || item.images[0] || null;
     const dragAttrs = (isRoster || !previewIsPrimaryView) ? '' : `draggable="true" data-drag-name="${escapeHtml(item.name)}"`;
+    // Isolate/restore icon: only ever on active cards (roster cards already
+    // have their own "Showcase ↑" restore link below), and only when
+    // item.duplicateAction was actually set for this item — see renderPreview.
+    const dupAction = (!isRoster && item.duplicateAction) ? item.duplicateAction : null;
+    const dupHtml = dupAction ? `
+      <button type="button" data-duplicate-action="${dupAction}" data-duplicate-name="${escapeHtml(item.name)}"
+        class="absolute -top-1.5 -right-1.5 z-20 w-6 h-6 rounded-full bg-forest text-white flex items-center justify-center shadow border-2 border-white cursor-pointer opacity-0 group-hover:opacity-100 transition"
+        title="${dupAction === 'isolate' ? 'Keep just this one active — stage the others using this same image' : 'Bring the others using this same image back into the showcase'}">
+        ${dupAction === 'isolate'
+          ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`
+          : `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>`}
+      </button>
+    ` : '';
     return `
-      <div class="flex flex-col items-center cursor-pointer" ${dragAttrs} data-pet-detail="${escapeHtml(item.name)}" title="View ${escapeHtml(item.name)}">
+      <div class="group flex flex-col items-center cursor-pointer" ${dragAttrs} data-pet-detail="${escapeHtml(item.name)}" title="View ${escapeHtml(item.name)}">
         <div class="preview-outer-frame relative">
           ${hasMultiple ? `
             <div class="absolute -top-1.5 -left-1.5 z-20 group/badge" data-badge-wrap>
@@ -4686,6 +4905,7 @@
               </div>
             </div>
           ` : ''}
+          ${dupHtml}
           <div class="preview-inner-frame">
             ${primary ? `<img data-main-img="${idx}" src="${primary}" class="w-full h-full object-cover" alt="${escapeHtml(item.name)}">` : `<span class="text-[10px] text-[#B9B9B7]">No render</span>`}
           </div>
@@ -4744,6 +4964,34 @@
     const activeItems = isPrimaryView ? previewItems.filter(i => i.staging !== 'roster') : previewItems;
     const rosterItems = isPrimaryView ? previewItems.filter(i => i.staging === 'roster') : [];
 
+    // Isolate/restore icon eligibility — only meaningful where roster
+    // (staging) exists at all, i.e. the primary "all accounts" view (see
+    // the comment at the top of this function). For each active item,
+    // "isolate" shows up if some OTHER active item currently displays the
+    // exact same image (redundant clutter to tidy up); "restore" shows up
+    // instead if there's no such active duplicate, but one or more staged
+    // items share it (something earlier isolate-d away that could come
+    // back). Neither applies and no icon shows if this image is unique
+    // across both groups right now — recomputed fresh every render rather
+    // than tracked as its own flag, so it always reflects live reality
+    // instead of drifting from whatever else changed the roster.
+    if (isPrimaryView) {
+      const owners = new Map(); // image src -> { active: [names], roster: [names] }
+      const bucket = (src) => {
+        if (!owners.has(src)) owners.set(src, { active: [], roster: [] });
+        return owners.get(src);
+      };
+      activeItems.forEach(item => { const src = primaryImageOf(item); if (src) bucket(src).active.push(item.name); });
+      rosterItems.forEach(item => { const src = primaryImageOf(item); if (src) bucket(src).roster.push(item.name); });
+      activeItems.forEach(item => {
+        const src = primaryImageOf(item);
+        const o = src ? owners.get(src) : null;
+        item.duplicateAction = !o ? null : (o.active.length > 1 ? 'isolate' : (o.roster.length > 0 ? 'restore' : null));
+      });
+    } else {
+      activeItems.forEach(item => { item.duplicateAction = null; });
+    }
+
     // only use the wider 5-column layout if there are actually 5+ ACTIVE pets
     // to show; otherwise stay on the 4-column grid even if "5 per row" is selected
     const useWide = previewDensity === 5 && activeItems.length >= 5;
@@ -4782,6 +5030,35 @@
     if (moveBtn) {
       e.stopPropagation();
       movePetStaging(moveBtn.dataset.moveToShowcase, 'active');
+      return;
+    }
+    const dupBtn = e.target.closest('[data-duplicate-action]');
+    if (dupBtn) {
+      e.stopPropagation(); // this is an action on the card, not a navigation into it
+      const action = dupBtn.dataset.duplicateAction;
+      const name = dupBtn.dataset.duplicateName;
+      const item = previewItems.find(i => i.name === name);
+      const src = item ? primaryImageOf(item) : null;
+      if (!src) return;
+      if (action === 'isolate') {
+        const others = previewItems
+          .filter(i => i.staging !== 'roster' && i.name !== name && primaryImageOf(i) === src)
+          .map(i => i.name);
+        movePetsStagingBatch(others, 'roster');
+        // Isolating shrinks the active grid and the page reflows around
+        // it — if the roster (staged) section further down happened to be
+        // in view when this was clicked, staying put just leaves the view
+        // pointing at whatever scrolled into that spot, which reads as
+        // landing in the middle of nowhere. Scrolling back to the top
+        // keeps the card that was just isolated (and the result of the
+        // click) actually in view.
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (action === 'restore') {
+        const others = previewItems
+          .filter(i => i.staging === 'roster' && primaryImageOf(i) === src)
+          .map(i => i.name);
+        movePetsStagingBatch(others, 'active');
+      }
       return;
     }
     const thumb = e.target.closest('.swap-thumb');
@@ -4884,6 +5161,36 @@
       lastDeleted = { type: 'stage-move', name, previousStatus };
       showToast(`"${name}" moved to Pet roster`);
     }
+  }
+
+  // Batched version of movePetStaging — moves several names to the same
+  // staging status in one save/render pass instead of one each, since the
+  // duplicate-image isolate/restore icon can affect many pets from a
+  // single click. Sets lastDeleted the same "list" way bulk-unpair already
+  // does elsewhere: the shared undo toast always shows an Undo button
+  // regardless of which action triggered it, so leaving lastDeleted
+  // untouched here would risk Undo silently reverting whatever the
+  // previous, unrelated action was instead of doing nothing or undoing
+  // this one — worth the small amount of extra bookkeeping to avoid.
+  function movePetsStagingBatch(names, targetStatus) {
+    if (!isUnlocked || !names.length) return;
+    const previousStatuses = {};
+    names.forEach(name => {
+      const records = pets.filter(p => p.name === name);
+      if (!records.length) return;
+      const prev = records[0].stagingStatus === 'roster' ? 'roster' : 'active';
+      if (prev === targetStatus) return; // already there
+      previousStatuses[name] = prev;
+      records.forEach(p => { p.stagingStatus = targetStatus; });
+    });
+    const movedNames = Object.keys(previousStatuses);
+    if (!movedNames.length) return;
+    savePets();
+    renderPreview();
+    lastDeleted = { type: 'stage-move-batch', names: movedNames, previousStatuses };
+    showToast(targetStatus === 'roster'
+      ? `${movedNames.length} pet${movedNames.length > 1 ? 's' : ''} moved to Pet roster`
+      : `${movedNames.length} pet${movedNames.length > 1 ? 's' : ''} moved back to the showcase`);
   }
 
   // only cards in the ACTIVE grid are draggable — dropping one anywhere
@@ -5010,6 +5317,13 @@
     };
     clearTimeout(lookupSaveTimer);
     lookupSaveTimer = setTimeout(() => { idbSetLookup(name, snapshot); }, 250);
+    // Text-only mirror, synced separately from the full local snapshot
+    // above — see buildSyncedLookupEntry. Keyed by the exact name (not
+    // lowercased via getMediaKey, which is a video/media-stack convention)
+    // to match idbGetLookup/idbSetLookup's own keying, so a lookup written
+    // here is always found by the same read path that already works today.
+    syncedLookups[name] = buildSyncedLookupEntry(snapshot);
+    sbSyncLookupsDebounced();
   }
 
   // ---- header: pet name / color / species (color & species are shared across
@@ -5592,10 +5906,24 @@
     return null;
   }
   // deletes one render from the stack — 'legacy' is the synthesized single
-  // pre-v3 record living in the old petVideos store, not the new stack store
+  // pre-v3 record living in the old petVideos store, not the new stack
+  // store. Only stack entries ever get a Storage upload tracked (see
+  // saveMediaCloudUrl's one caller in handleDetailFile), so 'legacy' has
+  // nothing in Storage to clean up — deleting it is purely local. For a
+  // real stack entry, this is the ONLY place a Storage file actually gets
+  // removed: uploading a new render just adds another entry and marks it
+  // active, it never touches an earlier one, so Storage cleanup has to live
+  // here rather than anywhere in the upload path.
   async function deleteMediaEntry(id) {
-    if (id === 'legacy') { await idbDeleteVideo(currentDetailPetName); }
-    else { await idbDeleteMedia(id); }
+    if (id === 'legacy') { await idbDeleteVideo(currentDetailPetName); return; }
+    await idbDeleteMedia(id);
+    const mediaKey = getMediaKey(currentDetailPetName);
+    const cloudEntry = getMediaCloudEntries(mediaKey).find(e => e.id === id);
+    if (cloudEntry) {
+      const path = storagePathFromPublicUrl(cloudEntry.url);
+      if (path) sbDeleteAsset(path); // fire-and-forget — local deletion already succeeded, no need to block on this
+      removeMediaCloudUrl(mediaKey, id);
+    }
   }
   function fileToDataUrl(file) {
     return new Promise((resolve, reject) => {
@@ -6497,6 +6825,13 @@
       records.forEach(p => { p.stagingStatus = lastDeleted.previousStatus; });
       savePets();
       renderPreview();
+    } else if (lastDeleted.type === 'stage-move-batch') {
+      lastDeleted.names.forEach(name => {
+        const records = pets.filter(p => p.name === name);
+        records.forEach(p => { p.stagingStatus = lastDeleted.previousStatuses[name]; });
+      });
+      savePets();
+      renderPreview();
     }
     hideToast();
   });
@@ -6848,6 +7183,69 @@
       renderDeck();
       renderGrid();
       if (currentView === 'preview') renderPreview();
+    }
+
+    // ---- pet lookups (colors/petpet/description, text-only) ----
+    // Own try/catch, matching the pets block above: nothing in here should
+    // be able to take down the rest of bootstrap or leave bootstrapDone
+    // (already true by this point) meaning something different than it
+    // should.
+    try {
+      const remoteLookups = (remoteSettings && remoteSettings[LOOKUPS_SETTINGS_KEY] && typeof remoteSettings[LOOKUPS_SETTINGS_KEY] === 'object') ? remoteSettings[LOOKUPS_SETTINGS_KEY] : {};
+      const localRecords = await idbGetAllLookups();
+      const localLookups = {};
+      localRecords.forEach((rec) => {
+        const entry = buildSyncedLookupEntry(rec);
+        entry.savedAt = rec.savedAt || 0; // the record's real save time, not "now" — buildSyncedLookupEntry stamps "now" for the live-save path, not this bulk read
+        localLookups[rec.name] = entry;
+      });
+      const mergedLookups = {};
+      new Set([...Object.keys(localLookups), ...Object.keys(remoteLookups)]).forEach((key) => {
+        const local = localLookups[key];
+        const remote = remoteLookups[key];
+        if (local && remote) {
+          mergedLookups[key] = ((remote.savedAt || 0) > (local.savedAt || 0)) ? remote : local;
+        } else {
+          mergedLookups[key] = local || remote;
+        }
+        // Exists remotely but was never touched on this device — write a
+        // local, text-only copy so opening that pet's detail view here
+        // shows the synced content instead of nothing. Video/media fields
+        // stay empty; this device genuinely has no render for it.
+        if (!local && remote) {
+          idbSetLookup(key, { theme: remote.theme, petpet: remote.petpet, description: remote.description, mediaUrl: '', activeMediaId: '' });
+        }
+      });
+      syncedLookups = mergedLookups;
+    } catch (e) {
+      console.error('Unexpected error while merging pet lookups from Supabase — continuing with local data only:', e);
+    } finally {
+      sbSaveSetting(LOOKUPS_SETTINGS_KEY, syncedLookups); // seeds/repairs remote the same way pets does above
+    }
+
+    // ---- video Storage URL pointers ----
+    try {
+      const remoteMediaCloud = (remoteSettings && remoteSettings[MEDIA_CLOUD_SETTINGS_KEY] && typeof remoteSettings[MEDIA_CLOUD_SETTINGS_KEY] === 'object') ? remoteSettings[MEDIA_CLOUD_SETTINGS_KEY] : {};
+      const localMediaCloud = getMediaCloudMap();
+      // Straightforward union, not a full reconciled merge: for each key,
+      // combine both sides' entries and dedupe by id (local wins a same-id
+      // conflict, since a local delete is the most likely reason for a
+      // mismatch). This doesn't handle "deleted on device A, still present
+      // on device B" — a stale entry could briefly resurface in a merge.
+      // The failure mode is mild (a dead link that just fails to play, not
+      // data loss), so simple wins over full tombstone tracking here.
+      const mergedMediaCloud = {};
+      new Set([...Object.keys(localMediaCloud), ...Object.keys(remoteMediaCloud)]).forEach((key) => {
+        const byId = new Map();
+        (remoteMediaCloud[key] || []).forEach((e) => byId.set(e.id, e));
+        (localMediaCloud[key] || []).forEach((e) => byId.set(e.id, e)); // local overwrites remote on the same id
+        mergedMediaCloud[key] = [...byId.values()];
+      });
+      try { localStorage.setItem(STORAGE_MEDIA_CLOUD_URLS, JSON.stringify(mergedMediaCloud)); } catch (e) {}
+    } catch (e) {
+      console.error('Unexpected error while merging media cloud URLs from Supabase — continuing with local data only:', e);
+    } finally {
+      sbSaveSetting(MEDIA_CLOUD_SETTINGS_KEY, getMediaCloudMap());
     }
   }
 
