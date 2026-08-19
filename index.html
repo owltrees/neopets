@@ -105,6 +105,35 @@
   .pet-img-stage { height: 185px; }
   .accordion-wrap { overflow: hidden; transition: max-height .2s ease, opacity .2s ease, margin .2s ease; }
 
+  /* Mobile: pet cards (both single-pet cards and cluster face-tiles, since
+     both share .pet-card) go full-width instead of a fixed 185px so they
+     don't get cramped or clipped on narrow phones. The image stage switches
+     to a square that scales with the card instead of a fixed 185px height,
+     which would otherwise look tiny relative to a full-width card.
+     Same logic applies to the Preview tab: the 4/5-per-row choice doesn't
+     mean anything once neither fits a phone screen, so that toggle hides
+     and both preview grids collapse to a single column to match. The
+     !important is needed because the column count is otherwise set as an
+     inline style by JS (see renderPreviewGrid), which normally beats a
+     plain stylesheet rule. */
+  @media (max-width: 499px) {
+    .pet-card { width: 100% !important; }
+    .pet-img-stage { height: auto !important; aspect-ratio: 1 / 1; }
+    #densityToggleWrap { display: none !important; }
+    #previewGrid, #petRosterGrid { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; gap: 1rem !important; }
+    /* Name bank: the fixed 3-column grid crams "Own"/account badge pills
+       into a column too narrow to hold them, wrapping and overflowing past
+       the card border. One card per row gives them room to sit on a single
+       line like they do on desktop. */
+    #nameBankList { grid-template-columns: 1fr !important; }
+    /* Preview tab: .preview-inner-frame is a fixed 150x150px box everywhere
+       else, matching the real Neopets petpage thumbnail size — but once the
+       grid above is down to one full-width column, that leaves a tiny image
+       floating in a lot of empty space. Scale it to fill the card instead. */
+    .preview-outer-frame { width: 100%; box-sizing: border-box; }
+    .preview-inner-frame { width: 100% !important; height: auto !important; aspect-ratio: 1 / 1; }
+  }
+
   #cardMenu { position: fixed; z-index: 60; }
 
   /* overlay scrollbar: invisible at rest, appears only while scrolling/hovering */
@@ -511,7 +540,7 @@
   body.theme-classic #wishlistSection .hover\:bg-teal:hover { background-color: #111827 !important; }
   /* A touch tighter than Theme 1 — matches the denser, more compact feel
      this theme already uses for buttons and tags elsewhere. */
-  body.theme-classic .name-bank-card { padding: 10px 12px !important; gap: 0.3rem !important; }
+  body.theme-classic .name-bank-card { padding: 8px 12px !important; gap: 0.3rem !important; }
   body.theme-classic .accent-teal { accent-color: #111827 !important; }
   body.theme-classic .hover\:decoration-teal:hover { text-decoration-color: #111827 !important; }
   body.theme-classic .bg-sage,
@@ -680,34 +709,47 @@
           class="transition-all duration-300 w-[180px] focus:w-[300px] pl-8 pr-3 py-2 rounded-xl border border-[#E2E8E4] text-sm bg-white text-forest placeholder:text-[#8AA39A]">
       </div>
 
-      <div class="hidden sm:block h-6 w-px bg-[#E2E8E4] shrink-0"></div>
-
-      <!-- status pills, first -->
-      <span id="statusFilterLabel" class="text-[11px] font-bold uppercase tracking-wide text-[#6E8880] shrink-0">Status</span>
-      <div id="statusPills" class="flex flex-nowrap gap-1.5 shrink-0"></div>
-
-      <!-- morphing potion filter pill -->
-      <button id="mpFilterBtn" class="pill text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0">🧪 Needs MP</button>
-
-      <!-- show completed pets toggle -->
-      <button id="showCompletedBtn" class="pill text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0">👁️ Show completed</button>
-
-      <div class="hidden sm:block h-6 w-px bg-[#E2E8E4] shrink-0"></div>
-
-      <!-- accounts toggle -->
-      <button id="accountsToggleBtn" class="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border border-[#E2E8E4] text-[#4B5A54] hover:border-teal hover:text-tealdark transition shrink-0 whitespace-nowrap">
-        <span id="accountsToggleLabel">Show accounts</span>
-        <svg id="accountsToggleIcon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="transition-transform"><path d="M6 9l6 6 6-6"/></svg>
+      <!-- Mobile-only: everything below (status pills, Needs MP, Show
+           completed, Show accounts, Edit, Clear filters) collapses behind
+           this on narrow screens, since a full row of pills eats most of a
+           phone's width otherwise. Always expanded on sm+ regardless of
+           this toggle's state — see #filterBarCollapsible below. -->
+      <button id="mobileFiltersToggleBtn" type="button" class="sm:hidden inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border border-[#E2E8E4] text-[#4B5A54] hover:border-teal hover:text-tealdark transition shrink-0 whitespace-nowrap">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="shrink-0"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        <span id="mobileFiltersToggleLabel">Show filters</span>
+        <svg id="mobileFiltersToggleIcon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="transition-transform shrink-0"><path d="M6 9l6 6 6-6"/></svg>
       </button>
 
-      <button id="editTagsBtn" title="Edit tags" class="inline-flex items-center gap-1.5 text-sm font-semibold text-[#6E8880] hover:text-forest px-3 py-1.5 rounded-lg hover:bg-sage transition whitespace-nowrap shrink-0 ml-auto">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 3.5 21 6l-1.5.5L17 4l1-1.5L20.5 3.5z"/><path d="M13 8 4 17v3h3l9-9-3-3z"/></svg>
-        Edit
-      </button>
+      <div id="filterBarCollapsible" class="hidden sm:flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+        <div class="hidden sm:block h-6 w-px bg-[#E2E8E4] shrink-0"></div>
 
-      <button id="clearFiltersBtn" class="hidden opacity-0 transition-opacity duration-200 text-sm font-semibold text-[#6E8880] hover:text-forest px-3 py-1.5 rounded-lg hover:bg-sage whitespace-nowrap shrink-0">
-        Clear filters
-      </button>
+        <!-- status pills, first -->
+        <span id="statusFilterLabel" class="text-[11px] font-bold uppercase tracking-wide text-[#6E8880] shrink-0">Status</span>
+        <div id="statusPills" class="flex flex-wrap sm:flex-nowrap gap-1.5 shrink-0"></div>
+
+        <!-- morphing potion filter pill -->
+        <button id="mpFilterBtn" class="pill text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0">🧪 Needs MP</button>
+
+        <!-- show completed pets toggle -->
+        <button id="showCompletedBtn" class="pill text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0">👁️ Show completed</button>
+
+        <div class="hidden sm:block h-6 w-px bg-[#E2E8E4] shrink-0"></div>
+
+        <!-- accounts toggle -->
+        <button id="accountsToggleBtn" class="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border border-[#E2E8E4] text-[#4B5A54] hover:border-teal hover:text-tealdark transition shrink-0 whitespace-nowrap">
+          <span id="accountsToggleLabel">Show accounts</span>
+          <svg id="accountsToggleIcon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="transition-transform"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+
+        <button id="editTagsBtn" title="Edit tags" class="inline-flex items-center gap-1.5 text-sm font-semibold text-[#6E8880] hover:text-forest px-3 py-1.5 rounded-lg hover:bg-sage transition whitespace-nowrap shrink-0 sm:ml-auto">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 3.5 21 6l-1.5.5L17 4l1-1.5L20.5 3.5z"/><path d="M13 8 4 17v3h3l9-9-3-3z"/></svg>
+          Edit
+        </button>
+
+        <button id="clearFiltersBtn" class="hidden opacity-0 transition-opacity duration-200 text-sm font-semibold text-[#6E8880] hover:text-forest px-3 py-1.5 rounded-lg hover:bg-sage whitespace-nowrap shrink-0">
+          Clear filters
+        </button>
+      </div>
     </div>
 
     <div id="accountPillsWrap" class="accordion-wrap max-h-0 opacity-0">
@@ -763,7 +805,7 @@
   <main id="petsMain" class="min-w-0">
     <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
       <h2 class="text-lg font-extrabold text-forest">Pet names <span id="petCount" class="text-[#8AA39A] font-semibold"></span></h2>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <div class="relative">
           <select id="sortSelect" class="appearance-none text-sm font-semibold pl-3 pr-8 py-2.5 rounded-full border border-[#E2E8E4] bg-white text-forest hover:border-teal transition cursor-pointer">
             <option value="newest">Sort by: Last added (newest first)</option>
@@ -846,7 +888,7 @@
           </span>
         </h2>
 
-        <div class="inline-flex rounded-full border border-[#DADADA] overflow-hidden shrink-0 mb-2">
+        <div id="densityToggleWrap" class="inline-flex rounded-full border border-[#DADADA] overflow-hidden shrink-0 mb-2">
           <button id="density4Btn" class="px-3.5 py-1.5 text-xs font-bold transition">4 per row</button>
           <button id="density5Btn" class="px-3.5 py-1.5 text-xs font-bold transition border-l border-[#DADADA]">5 per row</button>
         </div>
@@ -1061,14 +1103,18 @@
               <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#6E8880]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
             </div>
           </div>
-          <!-- Only in edit mode: this swaps in for Account whenever status is
-               anything other than blank/"Own" — an editing-mode convenience,
-               not something a not-yet-saved new pet has anywhere to attach
-               to (see updateModalStatusDependentFields). -->
+          <!-- Swaps in for Account whenever status is anything other than
+               blank/"Own" — applies the same way for a brand-new pet as for
+               an existing one (see updateModalStatusDependentFields). -->
           <div id="modalOwnerFieldWrap" class="hidden">
             <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block whitespace-nowrap">Neopets owner <span class="normal-case font-semibold text-[#8AA39A]">(optional)</span></label>
-            <input id="modalOwnerInput" type="text" placeholder="Current owner"
-              class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A]">
+            <div class="relative">
+              <input id="modalOwnerInput" type="text" placeholder="Current owner"
+                class="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A]">
+              <button type="button" id="modalOwnerCopyBtn" title="Copy to clipboard — paste into DB Browser for SQLite" class="hidden absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full text-[#8AA39A] hover:text-tealdark hover:bg-sage transition">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1082,10 +1128,6 @@
           <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Notes</label>
           <textarea id="modalNotesInput" rows="2" placeholder="Add any notes, keywords, or context..."
             class="deck-scroll w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] resize-none min-h-[52px]"></textarea>
-          <button type="button" id="modalAddOwnerInfoBtn" title="Searches the owner info files for this owner's name and adds any matching line(s) to Notes" class="hidden mt-2 neo-lookup-btn w-full inline-flex items-center justify-center gap-1.5 text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="shrink-0"><circle cx="10" cy="10" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
-            Add owner info to notes
-          </button>
         </div>
 
         <div id="modalCheckboxesWrap" class="space-y-2">
@@ -1150,8 +1192,13 @@
       </div>
       <div>
         <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Neopets owner <span class="normal-case font-semibold text-[#8AA39A]">(optional)</span></label>
-        <input id="searchNeopetOwnerInput" type="text" placeholder="Username"
-          class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] transition-colors">
+        <div class="relative">
+          <input id="searchNeopetOwnerInput" type="text" placeholder="Username"
+            class="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] transition-colors">
+          <button type="button" id="searchNeopetOwnerCopyBtn" title="Copy to clipboard — paste into DB Browser for SQLite" class="hidden absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full text-[#8AA39A] hover:text-tealdark hover:bg-sage transition">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
         <p id="searchNeopetOwnerHint" class="hidden text-[11px] font-semibold text-rose-600 mt-1">Please enter an owner to view!</p>
       </div>
       <div id="searchNeopetCtaRow" class="hidden flex gap-1.5">
@@ -1190,10 +1237,6 @@
             <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Notes</label>
             <textarea id="searchNeopetNotesInput" rows="2" placeholder="Add any notes, keywords, or context..."
               class="deck-scroll w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] resize-none min-h-[52px]"></textarea>
-            <button type="button" id="searchNeopetAddOwnerInfoBtn" title="Searches the owner info files for this owner's name and adds any matching line(s) to Notes" class="hidden mt-2 neo-lookup-btn w-full inline-flex items-center justify-center gap-1.5 text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="shrink-0"><circle cx="10" cy="10" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
-              Add owner info to notes
-            </button>
           </div>
           <button type="button" id="searchNeopetSaveBtn" class="w-full text-sm font-bold text-white bg-forest hover:bg-forestlight px-4 py-2.5 rounded-full transition">Save and add</button>
         </div>
@@ -1449,69 +1492,25 @@
     }
   }
 
-  // ---- owner-info text files ----
-  // Lives in a folder inside the same 'pet-assets' bucket already used for
-  // images, so there's no separate bucket/policy to set up — just create an
-  // "owner-notes" folder inside that bucket (in the Supabase dashboard) and
-  // drop the .txt files in. Fetched once per page load and cached in memory
-  // (there could be hundreds of small files, and the list rarely changes
-  // mid-session), so "Add owner info to notes" is instant after the first
-  // search. Uses .download() rather than public URLs so this works the same
-  // whether the bucket's read policy is public or restricted to the anon
-  // key, matching how sbUploadAsset() already handles images.
-  const OWNER_INFO_FOLDER = 'owner-notes';
-  let ownerInfoFilesCache = null; // null = not loaded yet; [] or populated array once it has been
-  let ownerInfoFilesLoadingPromise = null;
-  async function loadOwnerInfoFiles() {
-    if (ownerInfoFilesCache) return ownerInfoFilesCache;
-    if (ownerInfoFilesLoadingPromise) return ownerInfoFilesLoadingPromise;
-    if (!supabase) { ownerInfoFilesCache = []; return ownerInfoFilesCache; }
-    ownerInfoFilesLoadingPromise = (async () => {
-      try {
-        const { data: fileList, error } = await supabase.storage.from('pet-assets').list(OWNER_INFO_FOLDER, { limit: 1000 });
-        if (error) throw error;
-        const txtFiles = (fileList || []).filter(f => f.name && f.name.toLowerCase().endsWith('.txt'));
-        const downloaded = await Promise.all(txtFiles.map(async (f) => {
-          try {
-            const { data: blob, error: dlError } = await supabase.storage.from('pet-assets').download(`${OWNER_INFO_FOLDER}/${f.name}`);
-            if (dlError || !blob) return null;
-            const text = await blob.text();
-            return { name: f.name, text };
-          } catch (e) { console.error('Owner info file download error:', f.name, e); return null; }
-        }));
-        ownerInfoFilesCache = downloaded.filter(Boolean);
-        return ownerInfoFilesCache;
-      } catch (e) {
-        console.error('Supabase Storage Error (list owner-notes):', e);
-        ownerInfoFilesCache = [];
-        return ownerInfoFilesCache;
-      } finally {
-        ownerInfoFilesLoadingPromise = null;
-      }
-    })();
-    return ownerInfoFilesLoadingPromise;
+  // ---- owner-info lookup ----
+  // The 275-file dataset ended up living in a local SQLite file only (see
+  // build_owner_info_db.py) — nothing web-reachable, by choice, so there's
+  // no server-side query this can run anymore. There's also no browser API
+  // that lets a webpage open or drive a desktop app like DB Browser for
+  // SQLite — that's a hard sandboxing limit, not something worth working
+  // around. The closest useful thing left: copy the owner's username to
+  // the clipboard, so switching to DB Browser and searching is just
+  // "switch apps, paste" instead of retyping a username by hand.
+  async function copyOwnerToClipboard(owner) {
+    if (!owner) return;
+    try {
+      await navigator.clipboard.writeText(owner);
+      showSaveToast('Copied — paste into DB Browser');
+    } catch (e) {
+      console.error('Clipboard copy failed:', e);
+      showSaveToast("Couldn't copy — try again");
+    }
   }
-  // Exact substring match against the owner name as typed (case-insensitive,
-  // so "Bob" also catches "bob" or "BOB") — not a fuzzy or partial-word
-  // match — and returns the full line(s) it appears on, deduped, across
-  // every file.
-  function findOwnerInfoLines(ownerName, files) {
-    const needle = (ownerName || '').trim().toLowerCase();
-    if (!needle) return [];
-    const seen = new Set();
-    const matches = [];
-    files.forEach(({ text }) => {
-      text.split(/\r?\n/).forEach(line => {
-        const trimmed = line.trim();
-        if (trimmed && trimmed.toLowerCase().includes(needle) && !seen.has(trimmed)) {
-          seen.add(trimmed);
-          matches.push(trimmed);
-        }
-      });
-    });
-    return matches;
-  }
-
 
   // Uploads a File/Blob and returns its public URL, or null on any failure
   // (bucket not configured, offline, etc.) so callers can fall back to a
@@ -1584,7 +1583,12 @@
   }
 
   const DEFAULT_ACCOUNTS = []; // fresh start — no pre-seeded accounts; users add their own via the UI
-  const DEFAULT_STATUSES = ['Own', 'Inactive', 'Untaken', 'For trade'];
+  const DEFAULT_STATUSES = ['Own', 'Inactive', 'Untaken', 'For trade', 'For sale'];
+  // Statuses added after the initial release — ensures an already-persisted
+  // STATUSES list (local or remote) picks up new defaults once, without
+  // resurrecting anything a user deliberately deleted from the rest of
+  // DEFAULT_STATUSES. See ensureNewStatusesPresent() below.
+  const NEW_STATUS_MIGRATIONS = ['For sale'];
 
   const STORAGE_PETS = 'neo_tracker_pets_v2';
   const STORAGE_IMAGES = 'neo_tracker_images_v1';
@@ -1601,13 +1605,28 @@
     'Untaken': 'bg-slate-100 text-slate-600 border border-slate-200',
     'Own': 'bg-emerald-50 text-emerald-700 border border-emerald-200',
     'Inactive': 'bg-stone-100 text-stone-500 border border-stone-200',
-    'For trade': 'bg-sky-50 text-sky-700 border border-sky-200'
+    'For trade': 'bg-sky-50 text-sky-700 border border-sky-200',
+    'For sale': 'bg-amber-50 text-amber-700 border border-amber-200'
   };
 
   // ---------- state ----------
   let ACCOUNTS = loadJSON(STORAGE_ACCOUNTS, [...DEFAULT_ACCOUNTS]);
   let HIDDEN_ACCOUNTS = new Set(loadJSON(STORAGE_HIDDEN_ACCOUNTS, []));
   let STATUSES = loadJSON(STORAGE_STATUSES, [...DEFAULT_STATUSES]);
+  // Only relevant for an install that already had a persisted STATUSES list
+  // before 'For sale' existed — a brand-new one already gets it via
+  // DEFAULT_STATUSES above.
+  function ensureNewStatusesPresent() {
+    let added = false;
+    NEW_STATUS_MIGRATIONS.forEach(s => {
+      if (!STATUSES.includes(s)) { STATUSES.push(s); added = true; }
+    });
+    return added;
+  }
+  if (ensureNewStatusesPresent()) {
+    safeLocalStorageSet(STORAGE_STATUSES, JSON.stringify(STATUSES));
+    sbSaveSetting('statuses', STATUSES);
+  }
   let pets = migratePets(loadJSON(STORAGE_PETS, loadLegacyPets()));
   let stagedImages = loadJSON(STORAGE_IMAGES, []);
   // Un-customized reference pics — species/color ideas with no name or
@@ -2155,6 +2174,25 @@
   const searchInput = document.getElementById('searchInput');
   const filterBarRow = document.getElementById('filterBarRow');
   searchInput.addEventListener('focus', () => filterBarRow.classList.add('compact-filters'));
+
+  // Mobile-only "Show filters" toggle — collapses the status pills/Needs MP/
+  // Show completed/Show accounts/Edit/Clear filters row behind a button on
+  // narrow screens, since showing them all at once eats most of a phone's
+  // width. Has no effect on sm+ screens, where #filterBarCollapsible is
+  // always visible via its own "sm:flex" class regardless of this state.
+  const mobileFiltersToggleBtn = document.getElementById('mobileFiltersToggleBtn');
+  const mobileFiltersToggleLabel = document.getElementById('mobileFiltersToggleLabel');
+  const mobileFiltersToggleIcon = document.getElementById('mobileFiltersToggleIcon');
+  const filterBarCollapsible = document.getElementById('filterBarCollapsible');
+  let mobileFiltersExpanded = false;
+  mobileFiltersToggleBtn.addEventListener('click', () => {
+    mobileFiltersExpanded = !mobileFiltersExpanded;
+    filterBarCollapsible.classList.toggle('hidden', !mobileFiltersExpanded);
+    filterBarCollapsible.classList.toggle('flex', mobileFiltersExpanded);
+    mobileFiltersToggleLabel.textContent = mobileFiltersExpanded ? 'Hide filters' : 'Show filters';
+    mobileFiltersToggleIcon.classList.toggle('rotate-180', mobileFiltersExpanded);
+  });
+
   searchInput.addEventListener('blur', () => filterBarRow.classList.remove('compact-filters'));
 
   // populate modal selects (rebuildable, since tags are editable)
@@ -2419,24 +2457,35 @@
     // still gets priority for normal text pasting.
     if (!modalOpen && isEditableTarget(document.activeElement)) return;
     e.preventDefault();
-    if (modalOpen) {
-      // Unambiguous: a paste while editing a specific pet always means
-      // "this pet's looks" — same as it always has.
-      stageFile(file).catch(err => console.error('Failed to stage pasted image:', err));
-      flashPasteZone(true);
-      return;
-    }
-    if (document.activeElement === pasteZone) {
-      stageFile(file).catch(err => console.error('Failed to stage pasted image:', err));
-      flashPasteZone(true);
-      return;
-    }
+
+    const targetsPasteZone = document.activeElement === pasteZone;
     // No zone specifically has focus and no pet modal is open — this is the
     // genuinely ambiguous case (could reasonably mean Looks or the
     // Wishlist), so ask rather than guess. Skipped while some other modal
     // already has the screen's attention.
-    if (isAnyOtherModalOpen()) return;
-    openPasteChooser(file);
+    if (!modalOpen && !targetsPasteZone && isAnyOtherModalOpen()) return;
+
+    // Staging an image is an edit either way — whether that's about to land
+    // straight in an open pet modal, the paste zone, or the "Add this image
+    // to..." chooser below. None of those should be reachable while locked;
+    // ask for the PIN first (same prompt every other edit action uses) and
+    // only continue once it succeeds, rather than showing any of them to
+    // someone who hasn't authenticated yet.
+    (async () => {
+      if (!isUnlocked) {
+        await promptEnterPin();
+        if (!isUnlocked) return; // cancelled or wrong PIN — paste is simply dropped
+      }
+      if (modalOpen || targetsPasteZone) {
+        // Unambiguous: a paste while editing a specific pet (or with the
+        // paste zone focused) always means "this pet's looks" — same as it
+        // always has.
+        stageFile(file).catch(err => console.error('Failed to stage pasted image:', err));
+        flashPasteZone(true);
+        return;
+      }
+      openPasteChooser(file);
+    })();
   }, true);
 
   function flashPasteZone(success) {
@@ -2646,7 +2695,7 @@
         <div class="cluster-stack-layer cluster-stack-layer-1 absolute inset-0 bg-white border border-[#E2E8E4] opacity-70 pointer-events-none" style="transform:translate(6px,6px)"></div>
         <div class="cluster-stack-layer cluster-stack-layer-2 absolute inset-0 bg-white border border-[#E2E8E4] opacity-40 pointer-events-none" style="transform:translate(12px,12px)"></div>
         <div class="cluster-card-face relative bg-white border border-[#E2E8E4] shadow-card card-hover overflow-hidden">
-          <div class="w-full block bg-sage overflow-hidden relative${isUnlocked ? ' cursor-pointer' : ''}" style="height:185px"
+          <div class="w-full block bg-sage overflow-hidden relative pet-img-stage${isUnlocked ? ' cursor-pointer' : ''}"
             ${isUnlocked ? `data-cluster-edit="${escapeHtml(src)}" title="Edit image or tags for all ${group.length}" aria-label="Edit image or tags for every candidate in this stack"` : ''}>
             <img src="${src}" class="w-full h-full object-cover pointer-events-none" alt="">
             <span class="absolute top-2 left-2 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-forest/85 text-white leading-none pointer-events-none">${group.length} candidates</span>
@@ -2736,7 +2785,7 @@
   const nameBankCount = document.getElementById('nameBankCount');
   const nameBankEmpty = document.getElementById('nameBankEmpty');
   const nameBankList = document.getElementById('nameBankList');
-  let nameBankExpanded = false; // transient, like expandedClusters — collapsed again on reload
+  let nameBankExpanded = true; // open by default when landing on the editor; toggled per-click after that, but not persisted across reloads
 
   function renderNameBankRow(pet) {
     // The three lookup shortcuts now live inside the pet's own edit modal
@@ -3394,20 +3443,30 @@
   const modalAccountFieldWrap = document.getElementById('modalAccountFieldWrap');
   const modalOwnerFieldWrap = document.getElementById('modalOwnerFieldWrap');
   const modalOwnerCtaRow = document.getElementById('modalOwnerCtaRow');
-  const modalAddOwnerInfoBtn = document.getElementById('modalAddOwnerInfoBtn');
+  const modalOwnerCopyBtn = document.getElementById('modalOwnerCopyBtn');
   const modalViewPetBtn = document.getElementById('modalViewPetBtn');
   const modalViewPetpageBtn = document.getElementById('modalViewPetpageBtn');
   const modalViewOwnerBtn = document.getElementById('modalViewOwnerBtn');
 
   // Account and "Neopets owner" share one grid slot and are never shown
-  // together — which one appears (if either) follows directly from status:
-  // blank status means nothing is known yet, so Status is the only field
-  // that makes sense (full width, nothing to pair it with); "Own" doesn't
-  // need an owner override since the account already has it; anything else
-  // is exactly when knowing/looking up the current owner is useful. Scoped
-  // to editing an existing pet — a brand-new, not-yet-saved pet has no
-  // record yet for the owner shortcuts below to read or write, so it keeps
-  // the plain, unconditional layout instead.
+  // together — which one appears (if either, since some statuses show
+  // neither) follows directly from status:
+  //  - blank: nothing is known yet, so Status is the only field that makes
+  //    sense (full width, nothing to pair it with)
+  //  - "Own": the account already has it, no owner override needed
+  //  - "Untaken": neither an account nor a current owner is relevant, so
+  //    both stay out of the way (Status goes full width, same as blank)
+  //  - anything else (including "Inactive" and custom statuses someone adds
+  //    later, like "For trade" and "For sale" out of the box): this is
+  //    exactly when knowing/looking up the current owner is useful, so
+  //    Neopets owner shows — even while bulk-adding several pets at once,
+  //    since the same
+  //    owner still applies to all of them
+  // This applies the same way whether adding a brand-new pet or editing an
+  // existing one — the owner shortcuts below read/write the live form
+  // fields directly rather than a saved pet record, so there's nothing
+  // edit-only about them (see the click handlers further down).
+  const NO_OWNER_ACCOUNT_STATUSES = new Set(['Untaken']);
   function updateModalStatusDependentFields() {
     // Independent of edit vs. new-pet mode below: "has morphing potion" and
     // "completed on Neopets" only mean anything for a pet you actually own,
@@ -3415,83 +3474,60 @@
     // flow opened the modal.
     modalCheckboxesWrap.classList.toggle('hidden', modalStatusSelect.value !== 'Own');
 
-    if (!editingId) {
-      modalStatusFieldWrap.classList.remove('col-span-2');
-      modalAccountFieldWrap.classList.remove('hidden');
-      modalOwnerFieldWrap.classList.add('hidden');
-      modalOwnerCtaRow.classList.add('hidden');
-      modalAddOwnerInfoBtn.classList.add('hidden');
-      modalViewOwnerBtn.classList.add('hidden');
-      return;
-    }
     const status = modalStatusSelect.value;
     const isBlank = status === '';
     const isOwn = status === 'Own';
-    const showOwnerFields = !isBlank && !isOwn;
+    const isNeitherStatus = NO_OWNER_ACCOUNT_STATUSES.has(status);
+    const showOwnerFields = !isBlank && !isOwn && !isNeitherStatus;
+    // The View Neopet / View petpage / View owner row builds a link off ONE
+    // typed name — meaningless (and actively broken) mid-bulk-paste, when
+    // the Pet name field holds several lines at once ready to become
+    // several independent pets. Editing is always exactly one name; a
+    // fresh add only qualifies once it's down to one too. Neopets owner
+    // itself isn't gated on this — see above.
+    const singleName = parseModalNames().length <= 1;
 
-    modalStatusFieldWrap.classList.toggle('col-span-2', isBlank);
-    modalAccountFieldWrap.classList.toggle('hidden', isBlank || showOwnerFields);
+    modalStatusFieldWrap.classList.toggle('col-span-2', isBlank || isNeitherStatus);
+    modalAccountFieldWrap.classList.toggle('hidden', isBlank || isNeitherStatus || showOwnerFields);
     modalOwnerFieldWrap.classList.toggle('hidden', !showOwnerFields);
-    modalOwnerCtaRow.classList.toggle('hidden', !showOwnerFields);
+    modalOwnerCtaRow.classList.toggle('hidden', !showOwnerFields || !singleName);
     updateModalOwnerDependentButtons();
   }
   modalStatusSelect.addEventListener('change', updateModalStatusDependentFields);
 
-  // "Add owner info to notes" and "View owner" only make sense once there's
-  // an owner typed in AND that field is actually on screen (see
-  // updateModalStatusDependentFields above for when that is) — otherwise
-  // there's nothing to search for or look up.
+  // The copy icon and "View owner" only make sense once there's an owner
+  // typed in AND that field is actually on screen (see
+  // updateModalStatusDependentFields above for when that is, including the
+  // singleName/bulk-add case).
   function updateModalOwnerDependentButtons() {
     const ownerFieldVisible = !modalOwnerFieldWrap.classList.contains('hidden');
-    modalAddOwnerInfoBtn.classList.toggle('hidden', !ownerFieldVisible || !modalOwnerInput.value.trim());
+    modalOwnerCopyBtn.classList.toggle('hidden', !ownerFieldVisible || !modalOwnerInput.value.trim());
     modalViewOwnerBtn.classList.toggle('hidden', !ownerFieldVisible || !modalOwnerInput.value.trim());
   }
   modalOwnerInput.addEventListener('input', updateModalOwnerDependentButtons);
 
-  const modalAddOwnerInfoBtnDefaultLabel = modalAddOwnerInfoBtn.innerHTML;
-  modalAddOwnerInfoBtn.addEventListener('click', async () => {
-    const owner = modalOwnerInput.value.trim();
-    if (!owner || modalAddOwnerInfoBtn.disabled) return;
-    modalAddOwnerInfoBtn.disabled = true;
-    modalAddOwnerInfoBtn.classList.add('opacity-60', 'cursor-not-allowed');
-    modalAddOwnerInfoBtn.textContent = 'Searching…';
-    try {
-      const files = await loadOwnerInfoFiles();
-      const matches = findOwnerInfoLines(owner, files);
-      if (!matches.length) {
-        modalAddOwnerInfoBtn.textContent = 'No matching info found';
-        setTimeout(() => { modalAddOwnerInfoBtn.innerHTML = modalAddOwnerInfoBtnDefaultLabel; }, 1800);
-        return;
-      }
-      const addition = matches.join('\n');
-      modalNotesInput.value = modalNotesInput.value.trim()
-        ? `${modalNotesInput.value.trim()}\n${addition}`
-        : addition;
-      modalAddOwnerInfoBtn.innerHTML = modalAddOwnerInfoBtnDefaultLabel;
-      showSaveToast(matches.length > 1 ? `${matches.length} lines added to notes` : 'Line added to notes');
-    } catch (e) {
-      console.error('Add owner info to notes failed:', e);
-      modalAddOwnerInfoBtn.textContent = 'Search failed — try again';
-      setTimeout(() => { modalAddOwnerInfoBtn.innerHTML = modalAddOwnerInfoBtnDefaultLabel; }, 1800);
-    } finally {
-      modalAddOwnerInfoBtn.disabled = false;
-      modalAddOwnerInfoBtn.classList.remove('opacity-60', 'cursor-not-allowed');
-    }
+  modalOwnerCopyBtn.addEventListener('click', () => {
+    copyOwnerToClipboard(modalOwnerInput.value.trim());
   });
 
+  // These read the live form fields (not a saved pet record), so they work
+  // identically whether adding a brand-new pet or editing an existing one.
+  // View owner is the one exception: while editing, it defers to
+  // handleViewOwnerClick so a first-time owner set still gets saved onto
+  // the pet record the same way it always has; a not-yet-saved pet has no
+  // record to write to, so it just opens the link off whatever's typed.
   modalViewPetBtn.addEventListener('click', () => {
-    if (!editingId) return;
-    const pet = pets.find(p => p.id === editingId);
-    if (pet) window.open(buildPetLookupUrl(pet.name), '_blank', 'noopener,noreferrer');
+    const name = modalNameInput.value.trim();
+    if (name) window.open(buildPetLookupUrl(name), '_blank', 'noopener,noreferrer');
   });
   modalViewPetpageBtn.addEventListener('click', () => {
-    if (!editingId) return;
-    const pet = pets.find(p => p.id === editingId);
-    if (pet) window.open(buildPetPageUrl(pet.name), '_blank', 'noopener,noreferrer');
+    const name = modalNameInput.value.trim();
+    if (name) window.open(buildPetPageUrl(name), '_blank', 'noopener,noreferrer');
   });
   modalViewOwnerBtn.addEventListener('click', () => {
-    if (!editingId) return;
-    handleViewOwnerClick(editingId);
+    if (editingId) { handleViewOwnerClick(editingId); return; }
+    const owner = modalOwnerInput.value.trim();
+    if (owner) window.open(buildOwnerLookupUrl(owner), '_blank', 'noopener,noreferrer');
   });
 
   const modalNotesInput = document.getElementById('modalNotesInput');
@@ -3590,9 +3626,13 @@
     }
     resizeModalNameInput();
     updateModalNameCountHint();
+    // Keeps the View Neopet/petpage/owner row in sync with singleName as
+    // the field crosses in and out of bulk-paste territory while typing.
+    updateModalStatusDependentFields();
   });
   window.addEventListener('resize', () => {
     if (petModal && !petModal.classList.contains('hidden')) resizeModalNameInput();
+    if (currentView === 'preview') renderPreview();
   });
 
   const modalLooksRow = document.getElementById('modalLooksRow');
@@ -4038,7 +4078,7 @@
   const searchNeopetStatusSelect = document.getElementById('searchNeopetStatusSelect');
   const searchNeopetAccountSelect = document.getElementById('searchNeopetAccountSelect');
   const searchNeopetNotesInput = document.getElementById('searchNeopetNotesInput');
-  const searchNeopetAddOwnerInfoBtn = document.getElementById('searchNeopetAddOwnerInfoBtn');
+  const searchNeopetOwnerCopyBtn = document.getElementById('searchNeopetOwnerCopyBtn');
 
   function clearSearchNeopetOwnerHint() {
     searchNeopetOwnerInput.classList.remove('border-rose-400', 'ring-2', 'ring-rose-200');
@@ -4051,7 +4091,7 @@
     clearSearchNeopetOwnerHint();
     searchNeopetCtaRow.classList.add('hidden');
     searchNeopetViewOwnerBtn.classList.add('hidden');
-    searchNeopetAddOwnerInfoBtn.classList.add('hidden');
+    searchNeopetOwnerCopyBtn.classList.add('hidden');
     searchNeopetBankFields.classList.add('hidden');
     searchNeopetToggleBankIcon.classList.remove('rotate-45');
     searchNeopetToggleBankLabel.textContent = 'Add name';
@@ -4078,7 +4118,7 @@
   searchNeopetOwnerInput.addEventListener('input', () => {
     clearSearchNeopetOwnerHint();
     searchNeopetViewOwnerBtn.classList.toggle('hidden', !searchNeopetOwnerInput.value.trim());
-    searchNeopetAddOwnerInfoBtn.classList.toggle('hidden', !searchNeopetOwnerInput.value.trim());
+    searchNeopetOwnerCopyBtn.classList.toggle('hidden', !searchNeopetOwnerInput.value.trim());
   });
 
   document.getElementById('searchNeopetViewPetBtn').addEventListener('click', () => {
@@ -4104,35 +4144,8 @@
     window.open(buildOwnerLookupUrl(owner), '_blank', 'noopener,noreferrer');
   });
 
-  const searchNeopetAddOwnerInfoBtnDefaultLabel = searchNeopetAddOwnerInfoBtn.innerHTML;
-  searchNeopetAddOwnerInfoBtn.addEventListener('click', async () => {
-    const owner = searchNeopetOwnerInput.value.trim();
-    if (!owner || searchNeopetAddOwnerInfoBtn.disabled) return;
-    searchNeopetAddOwnerInfoBtn.disabled = true;
-    searchNeopetAddOwnerInfoBtn.classList.add('opacity-60', 'cursor-not-allowed');
-    searchNeopetAddOwnerInfoBtn.textContent = 'Searching…';
-    try {
-      const files = await loadOwnerInfoFiles();
-      const matches = findOwnerInfoLines(owner, files);
-      if (!matches.length) {
-        searchNeopetAddOwnerInfoBtn.textContent = 'No matching info found';
-        setTimeout(() => { searchNeopetAddOwnerInfoBtn.innerHTML = searchNeopetAddOwnerInfoBtnDefaultLabel; }, 1800);
-        return;
-      }
-      const addition = matches.join('\n');
-      searchNeopetNotesInput.value = searchNeopetNotesInput.value.trim()
-        ? `${searchNeopetNotesInput.value.trim()}\n${addition}`
-        : addition;
-      searchNeopetAddOwnerInfoBtn.innerHTML = searchNeopetAddOwnerInfoBtnDefaultLabel;
-      showSaveToast(matches.length > 1 ? `${matches.length} lines added to notes` : 'Line added to notes');
-    } catch (e) {
-      console.error('Add owner info to notes failed:', e);
-      searchNeopetAddOwnerInfoBtn.textContent = 'Search failed — try again';
-      setTimeout(() => { searchNeopetAddOwnerInfoBtn.innerHTML = searchNeopetAddOwnerInfoBtnDefaultLabel; }, 1800);
-    } finally {
-      searchNeopetAddOwnerInfoBtn.disabled = false;
-      searchNeopetAddOwnerInfoBtn.classList.remove('opacity-60', 'cursor-not-allowed');
-    }
+  searchNeopetOwnerCopyBtn.addEventListener('click', () => {
+    copyOwnerToClipboard(searchNeopetOwnerInput.value.trim());
   });
 
   // The "+"/"Add name" toggle becomes an "×"/"Cancel" close control once the
@@ -4477,22 +4490,30 @@
   density4Btn.addEventListener('click', () => setPreviewDensity(4));
   density5Btn.addEventListener('click', () => setPreviewDensity(5));
 
+  // This is the actual root cause of the mobile Preview tab looking broken:
+  // the shell/header/roster were always forced to a fixed 750px or 920px
+  // desktop content width via inline styles, with nothing to shrink them on
+  // a narrow phone. That's what was producing the sliver-of-content,
+  // horizontally-cut-off look — not the grid column count, which was the
+  // only thing fixed earlier. Below the same 500px breakpoint used for the
+  // editor's pet cards, this now sizes to the viewport instead.
   function applyPreviewShellWidth(useWide) {
-    const w = (useWide ? PREVIEW_WIDTH_5 : PREVIEW_WIDTH_4) + 'px';
+    const isNarrow = window.innerWidth < 500;
+    const w = isNarrow ? '100%' : (useWide ? PREVIEW_WIDTH_5 : PREVIEW_WIDTH_4) + 'px';
     previewShell.style.boxSizing = 'border-box';
     previewShell.style.width = w;
-    previewShell.style.minWidth = w;
-    previewShell.style.maxWidth = w;
+    previewShell.style.minWidth = isNarrow ? '0' : w;
+    previewShell.style.maxWidth = isNarrow ? '100%' : w;
     previewHeaderRow.style.boxSizing = 'border-box';
     previewHeaderRow.style.width = w;
-    previewHeaderRow.style.minWidth = w;
-    previewHeaderRow.style.maxWidth = w;
+    previewHeaderRow.style.minWidth = isNarrow ? '0' : w;
+    previewHeaderRow.style.maxWidth = isNarrow ? '100%' : w;
     // the Pet roster section mirrors the exact same outer width/margins as
     // the active showcase card above it, so their borders align flush
     petRosterSection.style.boxSizing = 'border-box';
     petRosterSection.style.width = w;
-    petRosterSection.style.minWidth = w;
-    petRosterSection.style.maxWidth = w;
+    petRosterSection.style.minWidth = isNarrow ? '0' : w;
+    petRosterSection.style.maxWidth = isNarrow ? '100%' : w;
   }
 
   // Builds one preview card's HTML. `idx` must be the item's index within the
@@ -6647,6 +6668,10 @@
       }
       if (Array.isArray(remoteSettings.statuses) && remoteSettings.statuses.length) {
         STATUSES = remoteSettings.statuses;
+        // The remote copy can itself predate 'For sale' (e.g. synced from
+        // another device before this migration existed) — re-run the same
+        // check so it doesn't get lost the moment the remote list wins.
+        if (ensureNewStatusesPresent()) sbSaveSetting('statuses', STATUSES);
         changed = true;
       } else if (STATUSES.length) {
         sbSaveSetting('statuses', STATUSES);
