@@ -165,6 +165,25 @@
   #filterBarRow.compact-filters #editTagsBtn,
   #filterBarRow.compact-filters #clearFiltersBtn { padding-left: 0.625rem; padding-right: 0.625rem; }
 
+  /* Image deck sidebar (desktop): sticks below the search/filter bar, with
+     the same gap below it that it has at rest (unscrolled) — driven by
+     --deck-top-offset, which JS keeps in sync with the filter bar's actual
+     rendered height (see syncDeckTopOffset). This offset is only correct
+     for WHERE the deck sticks, though — not for its height. At the very
+     top of the page the deck hasn't scrolled up to that stuck position
+     yet, so it's still sitting below the full header, not just the filter
+     bar; a height based only on the filter-bar offset leaves it taller
+     than the space actually available there and running off the bottom of
+     the screen. Height is set directly by JS instead (syncDeckAsideHeight)
+     from the deck's own live position, which is correct in both states and
+     through the transition between them. Below 1024px the deck isn't
+     sticky at all — it flows normally in the stacked layout, so none of
+     this applies there. */
+  #imageDeckAside { --deck-top-offset: 130px; }
+  @media (min-width: 1024px) {
+    #imageDeckAside { position: sticky; top: var(--deck-top-offset); }
+  }
+
   /* preview view */
   .preview-outer-frame { border: 1px solid #D1D1D0; background: #FFFFFF; padding: 3px; display: inline-flex; align-items: center; justify-content: center; }
   .preview-inner-frame { width: 150px; height: 150px; overflow: hidden; background: #F4F4F3; display: flex; align-items: center; justify-content: center; }
@@ -550,13 +569,6 @@
   body.theme-classic .bg-sage\/60 { background-color: rgba(241,245,249,0.6) !important; }
   body.theme-classic .border-sage { border-color: #E2E8F0 !important; }
   body.theme-classic .border-sagedeep { border-color: #CBD5E1 !important; }
-  /* Neopets-lookup shortcut buttons in the pet modal: a black outline
-     (rather than the soft gray border-sagedeep normally gets swept to)
-     matches this theme's crisper, higher-contrast aesthetic. Theme 1 gets
-     a touch larger text instead — its base size otherwise reads slightly
-     small next to the rest of the modal's labels. */
-  body.theme-classic .neo-lookup-btn { border-color: #000000 !important; }
-  body:not(.theme-classic) .neo-lookup-btn { font-size: 11px !important; }
   body.theme-classic input:focus,
   body.theme-classic textarea:focus,
   body.theme-classic [contenteditable]:focus { outline-color: #111827 !important; }
@@ -773,7 +785,7 @@
 <div class="max-w-[1600px] mx-auto px-6 py-6 grid grid-cols-1 lg:grid-cols-[308px_1fr] gap-6 items-start">
 
   <!-- LEFT: IMAGE DECK -->
-  <aside class="lg:sticky lg:top-[130px] w-full lg:h-[calc(100vh-150px)]">
+  <aside id="imageDeckAside" class="w-full">
     <div id="imageDeckPanel" class="bg-white rounded-2xl border border-[#E2E8E4] shadow-card p-5 h-full flex flex-col gap-3 overflow-hidden">
       <div class="flex items-center justify-between shrink-0">
         <h2 id="imageDeckTitle" class="font-extrabold text-forest text-base">Your pet looks</h2>
@@ -1079,8 +1091,11 @@
       <div class="space-y-4">
         <div>
           <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Pet name</label>
-          <textarea id="modalNameInput" rows="1" placeholder="e.g. Moonveil Fox — or paste a list, one name per line, to add several at once"
-            class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] resize-none leading-snug"></textarea>
+          <div class="relative">
+            <textarea id="modalNameInput" rows="1" placeholder="e.g. Moonveil Fox — or paste a list, one name per line, to add several at once"
+              class="w-full pl-3.5 pr-16 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] resize-none leading-snug"></textarea>
+            <button type="button" id="modalNameSearchBtn" title="Open this pet's Neopets lookup in a new tab" class="hidden absolute right-3.5 top-2.5 text-xs font-bold text-tealdark hover:text-forest underline decoration-dotted underline-offset-2 transition">Search</button>
+          </div>
           <p id="modalNameCountHint" class="hidden text-xs font-semibold text-teal mt-1"></p>
         </div>
 
@@ -1110,18 +1125,15 @@
             <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block whitespace-nowrap">Neopets owner <span class="normal-case font-semibold text-[#8AA39A]">(optional)</span></label>
             <div class="relative">
               <input id="modalOwnerInput" type="text" placeholder="Current owner"
-                class="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A]">
-              <button type="button" id="modalOwnerCopyBtn" title="Copy to clipboard — paste into DB Browser for SQLite" class="hidden absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full text-[#8AA39A] hover:text-tealdark hover:bg-sage transition">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              </button>
+                class="w-full pl-3.5 pr-[92px] py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A]">
+              <div id="modalOwnerCtaGroup" class="hidden absolute right-1.5 top-1/2 -translate-y-1/2 items-center gap-2">
+                <button type="button" id="modalOwnerViewBtn" title="Open (or set) this pet's owner userlookup in a new tab" class="text-xs font-bold text-tealdark hover:text-forest underline decoration-dotted underline-offset-2 transition whitespace-nowrap">View</button>
+                <button type="button" id="modalOwnerCopyBtn" title="Copy to clipboard — paste into DB Browser for SQLite" class="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-[#8AA39A] hover:text-tealdark hover:bg-sage transition">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-
-        <div id="modalOwnerCtaRow" class="hidden flex gap-1.5 mb-12" style="margin-bottom: 48px;">
-          <button type="button" id="modalViewPetBtn" title="Open this pet's Neopets lookup in a new tab" class="neo-lookup-btn flex-1 inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View Neopet</button>
-          <button type="button" id="modalViewPetpageBtn" title="Open this pet's petpage in a new tab" class="neo-lookup-btn flex-1 inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View petpage</button>
-          <button type="button" id="modalViewOwnerBtn" title="Open (or set) this pet's owner userlookup in a new tab" class="hidden neo-lookup-btn flex-1 inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View owner</button>
         </div>
 
         <div class="flex flex-col">
@@ -1187,24 +1199,24 @@
     <div class="px-6 py-5 space-y-4">
       <div>
         <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Pet name</label>
-        <input id="searchNeopetNameInput" type="text" placeholder="e.g. Moonveil Fox"
-          class="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A]">
+        <div class="relative">
+          <input id="searchNeopetNameInput" type="text" placeholder="e.g. Moonveil Fox"
+            class="w-full pl-3.5 pr-24 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A]">
+          <button type="button" id="searchNeopetSearchBtn" title="Open this pet's Neopets lookup in a new tab" class="hidden absolute right-1.5 top-1/2 -translate-y-1/2 items-center bg-forest text-white text-xs font-bold px-3.5 py-1.5 rounded-full hover:bg-forestlight transition">Search</button>
+        </div>
       </div>
       <div>
         <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Neopets owner <span class="normal-case font-semibold text-[#8AA39A]">(optional)</span></label>
         <div class="relative">
           <input id="searchNeopetOwnerInput" type="text" placeholder="Username"
-            class="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] transition-colors">
-          <button type="button" id="searchNeopetOwnerCopyBtn" title="Copy to clipboard — paste into DB Browser for SQLite" class="hidden absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full text-[#8AA39A] hover:text-tealdark hover:bg-sage transition">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          </button>
+            class="w-full pl-3.5 pr-[92px] py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] transition-colors">
+          <div id="searchNeopetOwnerCtaGroup" class="hidden absolute right-1.5 top-1/2 -translate-y-1/2 items-center gap-2">
+            <button type="button" id="searchNeopetViewOwnerBtn" title="Open this name's owner userlookup in a new tab" class="text-xs font-bold text-tealdark hover:text-forest underline decoration-dotted underline-offset-2 transition whitespace-nowrap">View</button>
+            <button type="button" id="searchNeopetOwnerCopyBtn" title="Copy to clipboard — paste into DB Browser for SQLite" class="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-[#8AA39A] hover:text-tealdark hover:bg-sage transition">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
         </div>
-        <p id="searchNeopetOwnerHint" class="hidden text-[11px] font-semibold text-rose-600 mt-1">Please enter an owner to view!</p>
-      </div>
-      <div id="searchNeopetCtaRow" class="hidden flex gap-1.5">
-        <button type="button" id="searchNeopetViewPetBtn" title="Open this pet's Neopets lookup in a new tab" class="neo-lookup-btn flex-1 inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View Neopet</button>
-        <button type="button" id="searchNeopetViewPetpageBtn" title="Open this pet's petpage in a new tab" class="neo-lookup-btn flex-1 inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View petpage</button>
-        <button type="button" id="searchNeopetViewOwnerBtn" title="Open this name's owner userlookup in a new tab" class="hidden neo-lookup-btn flex-1 inline-flex flex-col items-center justify-center gap-0.5 text-center text-[10px] leading-tight font-bold text-tealdark hover:text-forest border border-sagedeep hover:border-teal hover:bg-sage px-1.5 py-2 rounded-lg transition">View owner</button>
       </div>
 
       <div class="pt-3 border-t border-dashed border-[#E2E8E4]">
@@ -1734,14 +1746,6 @@
   function buildOwnerLookupUrl(owner) {
     return `https://www.neopets.com/userlookup.phtml?user=${encodeURIComponent(owner)}&x=${randomNeoLookupNum()}`;
   }
-  // A browser won't let a page open a view-source: link (blocked for
-  // security reasons regardless of how it's triggered), so this goes to the
-  // plain petpage itself rather than its source — as close as a hyperlink
-  // can get. The owner's username used to still be visible in that page's
-  // rendered banner/referral link even without viewing raw source.
-  function buildPetPageUrl(name) {
-    return `https://www.neopets.com/~${encodeURIComponent(name)}`;
-  }
 
   // ---------- per-pet video storage (IndexedDB, keyed by pet name) ----------
   // Videos are stored as Blobs in IndexedDB rather than base64 Data URLs in
@@ -2192,6 +2196,49 @@
     mobileFiltersToggleLabel.textContent = mobileFiltersExpanded ? 'Hide filters' : 'Show filters';
     mobileFiltersToggleIcon.classList.toggle('rotate-180', mobileFiltersExpanded);
   });
+
+  // Keeps the image deck sidebar's sticky top offset glued to the filter
+  // bar's actual rendered height, instead of a guessed pixel value that
+  // drifts out of sync the moment the filter bar's own height changes (new
+  // status tags wrapping to a second row, font loading, browser zoom,
+  // window resize, etc.). This offset only governs WHERE the deck sticks
+  // once scrolled that far — it's deliberately just the filter bar's own
+  // height (plus the same 24px gap the two already sit under at rest via
+  // "py-6"), since once scrolled that far the header above it is gone and
+  // the filter bar alone is what's pinned above the deck.
+  const imageDeckAside = document.getElementById('imageDeckAside');
+  const filterBar = document.getElementById('filterBar');
+  const DECK_GAP = 24;
+  function syncDeckTopOffset() {
+    if (!filterBar || !imageDeckAside) return;
+    imageDeckAside.style.setProperty('--deck-top-offset', (filterBar.getBoundingClientRect().height + DECK_GAP) + 'px');
+  }
+
+  // The offset above is only right for the stuck state, though — at the
+  // top of the page the deck is still sitting below the full header, not
+  // just the filter bar, so a height based on that offset alone leaves it
+  // taller than the space actually available there and running off the
+  // bottom of the screen. Reading the deck's own current position instead
+  // sidesteps needing to know which state it's in: getBoundingClientRect()
+  // reports where it's actually rendered right now, stuck or not, so this
+  // stays correct through the scroll transition between the two rather
+  // than only after it's finished.
+  let deckHeightRaf = null;
+  function syncDeckAsideHeight() {
+    if (!imageDeckAside) return;
+    if (window.innerWidth < 1024) { imageDeckAside.style.height = ''; return; }
+    const top = imageDeckAside.getBoundingClientRect().top;
+    imageDeckAside.style.height = Math.max(window.innerHeight - top - DECK_GAP, 240) + 'px';
+  }
+  function scheduleDeckHeightSync() {
+    if (deckHeightRaf) return;
+    deckHeightRaf = requestAnimationFrame(() => { deckHeightRaf = null; syncDeckAsideHeight(); });
+  }
+  function syncDeckAside() { syncDeckTopOffset(); syncDeckAsideHeight(); }
+  syncDeckAside();
+  window.addEventListener('resize', syncDeckAside);
+  window.addEventListener('scroll', scheduleDeckHeightSync, { passive: true });
+  if (window.ResizeObserver) new ResizeObserver(syncDeckAside).observe(filterBar);
 
   searchInput.addEventListener('blur', () => filterBarRow.classList.remove('compact-filters'));
 
@@ -3404,26 +3451,27 @@
   const modalStatusFieldWrap = document.getElementById('modalStatusFieldWrap');
   const modalAccountFieldWrap = document.getElementById('modalAccountFieldWrap');
   const modalOwnerFieldWrap = document.getElementById('modalOwnerFieldWrap');
-  const modalOwnerCtaRow = document.getElementById('modalOwnerCtaRow');
+  const modalOwnerCtaGroup = document.getElementById('modalOwnerCtaGroup');
   const modalOwnerCopyBtn = document.getElementById('modalOwnerCopyBtn');
-  const modalViewPetBtn = document.getElementById('modalViewPetBtn');
-  const modalViewPetpageBtn = document.getElementById('modalViewPetpageBtn');
-  const modalViewOwnerBtn = document.getElementById('modalViewOwnerBtn');
+  const modalOwnerViewBtn = document.getElementById('modalOwnerViewBtn');
+  const modalNameSearchBtn = document.getElementById('modalNameSearchBtn');
 
   // Account and "Neopets owner" share one grid slot and are never shown
   // together — which one appears (if either, since some statuses show
   // neither) follows directly from status:
-  //  - blank: nothing is known yet, so Status is the only field that makes
-  //    sense (full width, nothing to pair it with)
+  //  - blank: no account to show yet (nothing's been claimed), but the
+  //    lookup buttons and the owner field are still genuinely useful
+  //    before a status is even set — e.g. checking "is this name already
+  //    taken?" or noting who currently has it — so those behave the same
+  //    as any other non-Own status below
   //  - "Own": the account already has it, no owner override needed
   //  - "Untaken": neither an account nor a current owner is relevant, so
-  //    both stay out of the way (Status goes full width, same as blank)
-  //  - anything else (including "Inactive" and custom statuses someone adds
-  //    later, like "For trade" and "For sale" out of the box): this is
-  //    exactly when knowing/looking up the current owner is useful, so
-  //    Neopets owner shows — even while bulk-adding several pets at once,
-  //    since the same
-  //    owner still applies to all of them
+  //    both stay out of the way (Status goes full width)
+  //  - anything else (including blank, "Inactive", and custom statuses
+  //    someone adds later, like "For trade" and "For sale" out of the
+  //    box): this is exactly when knowing/looking up the current owner is
+  //    useful, so Neopets owner shows — even while bulk-adding several
+  //    pets at once, since the same owner still applies to all of them
   // This applies the same way whether adding a brand-new pet or editing an
   // existing one — the owner shortcuts below read/write the live form
   // fields directly rather than a saved pet record, so there's nothing
@@ -3440,31 +3488,25 @@
     const isBlank = status === '';
     const isOwn = status === 'Own';
     const isNeitherStatus = NO_OWNER_ACCOUNT_STATUSES.has(status);
-    const showOwnerFields = !isBlank && !isOwn && !isNeitherStatus;
-    // The View Neopet / View petpage / View owner row builds a link off ONE
-    // typed name — meaningless (and actively broken) mid-bulk-paste, when
-    // the Pet name field holds several lines at once ready to become
-    // several independent pets. Editing is always exactly one name; a
-    // fresh add only qualifies once it's down to one too. Neopets owner
-    // itself isn't gated on this — see above.
-    const singleName = parseModalNames().length <= 1;
+    const showOwnerFields = !isOwn && !isNeitherStatus;
 
-    modalStatusFieldWrap.classList.toggle('col-span-2', isBlank || isNeitherStatus);
+    modalStatusFieldWrap.classList.toggle('col-span-2', isNeitherStatus);
     modalAccountFieldWrap.classList.toggle('hidden', isBlank || isNeitherStatus || showOwnerFields);
     modalOwnerFieldWrap.classList.toggle('hidden', !showOwnerFields);
-    modalOwnerCtaRow.classList.toggle('hidden', !showOwnerFields || !singleName);
     updateModalOwnerDependentButtons();
+    updateModalNameSearchBtn();
   }
   modalStatusSelect.addEventListener('change', updateModalStatusDependentFields);
 
-  // The copy icon and "View owner" only make sense once there's an owner
-  // typed in AND that field is actually on screen (see
-  // updateModalStatusDependentFields above for when that is, including the
-  // singleName/bulk-add case).
+  // The copy icon and "Search" link only make sense once there's an
+  // owner typed in AND that field is actually on screen (see
+  // updateModalStatusDependentFields above for when that is). Both sit in
+  // one shared group so they show/hide together as a unit.
   function updateModalOwnerDependentButtons() {
     const ownerFieldVisible = !modalOwnerFieldWrap.classList.contains('hidden');
-    modalOwnerCopyBtn.classList.toggle('hidden', !ownerFieldVisible || !modalOwnerInput.value.trim());
-    modalViewOwnerBtn.classList.toggle('hidden', !ownerFieldVisible || !modalOwnerInput.value.trim());
+    const show = ownerFieldVisible && !!modalOwnerInput.value.trim();
+    modalOwnerCtaGroup.classList.toggle('hidden', !show);
+    modalOwnerCtaGroup.classList.toggle('flex', show);
   }
   modalOwnerInput.addEventListener('input', updateModalOwnerDependentButtons);
 
@@ -3472,30 +3514,38 @@
     copyOwnerToClipboard(modalOwnerInput.value.trim());
   });
 
-  // All three read the live form fields directly (not a saved pet record),
-  // so they work identically whether adding a brand-new pet or editing an
-  // existing one, and always reflect whatever's currently typed even if it
-  // hasn't been saved yet. View owner used to defer to a separate
+  // Reads the live form fields directly (not a saved pet record), so it
+  // works identically whether adding a brand-new pet or editing an
+  // existing one, and always reflects whatever's currently typed even if
+  // it hasn't been saved yet. This button used to defer to a separate
   // "prompt for username" flow while editing, which read the pet's saved
   // owner rather than this field — harmless once saved, but it meant a
   // freshly-typed owner that hadn't been saved yet still looked unset to
   // it, popping the prompt again right on top of the value already sitting
-  // in the field. This button is only ever visible once the field has
-  // something in it (see updateModalOwnerDependentButtons), so there's
-  // nothing left to prompt for — reading it directly is always correct.
-  modalViewPetBtn.addEventListener('click', () => {
-    const name = modalNameInput.value.trim();
-    if (name) window.open(buildPetLookupUrl(name), '_blank', 'noopener,noreferrer');
-  });
-  modalViewPetpageBtn.addEventListener('click', () => {
-    const name = modalNameInput.value.trim();
-    if (name) window.open(buildPetPageUrl(name), '_blank', 'noopener,noreferrer');
-  });
-  modalViewOwnerBtn.addEventListener('click', () => {
+  // in the field. It's only ever visible once the field has something in
+  // it (see updateModalOwnerDependentButtons), so there's nothing left to
+  // prompt for — reading it directly is always correct.
+  modalOwnerViewBtn.addEventListener('click', () => {
     const owner = modalOwnerInput.value.trim();
     if (owner) window.open(buildOwnerLookupUrl(owner), '_blank', 'noopener,noreferrer');
   });
 
+  // Lives inside the Pet name field itself rather than a separate button
+  // row below it — builds a link off ONE typed name, so it's meaningless
+  // (and actively broken) mid-bulk-paste, when the field holds several
+  // lines at once ready to become several independent pets. Editing is
+  // always exactly one name; a fresh add only qualifies once it's down to
+  // one too. Unlike Neopets owner above, this isn't gated on status at
+  // all — looking a pet up by name is unrelated to whether it's owned,
+  // inactive, untaken, or anything else.
+  function updateModalNameSearchBtn() {
+    const singleName = parseModalNames().length <= 1;
+    modalNameSearchBtn.classList.toggle('hidden', !singleName || !modalNameInput.value.trim());
+  }
+  modalNameSearchBtn.addEventListener('click', () => {
+    const name = modalNameInput.value.trim();
+    if (name) window.open(buildPetLookupUrl(name), '_blank', 'noopener,noreferrer');
+  });
 
   const modalNotesInput = document.getElementById('modalNotesInput');
   let modalNotesScrollTimer = null;
@@ -3593,9 +3643,10 @@
     }
     resizeModalNameInput();
     updateModalNameCountHint();
-    // Keeps the View Neopet/petpage/owner row in sync with singleName as
-    // the field crosses in and out of bulk-paste territory while typing.
-    updateModalStatusDependentFields();
+    // Keeps the inline "Search" link in the field itself in sync with
+    // singleName as it crosses in and out of bulk-paste territory while
+    // typing (see updateModalNameSearchBtn).
+    updateModalNameSearchBtn();
   });
   window.addEventListener('resize', () => {
     if (petModal && !petModal.classList.contains('hidden')) resizeModalNameInput();
@@ -4035,8 +4086,8 @@
   const searchNeopetModal = document.getElementById('searchNeopetModal');
   const searchNeopetNameInput = document.getElementById('searchNeopetNameInput');
   const searchNeopetOwnerInput = document.getElementById('searchNeopetOwnerInput');
-  const searchNeopetOwnerHint = document.getElementById('searchNeopetOwnerHint');
-  const searchNeopetCtaRow = document.getElementById('searchNeopetCtaRow');
+  const searchNeopetSearchBtn = document.getElementById('searchNeopetSearchBtn');
+  const searchNeopetOwnerCtaGroup = document.getElementById('searchNeopetOwnerCtaGroup');
   const searchNeopetViewOwnerBtn = document.getElementById('searchNeopetViewOwnerBtn');
   const searchNeopetToggleBankBtn = document.getElementById('searchNeopetToggleBankBtn');
   const searchNeopetToggleBankIcon = document.getElementById('searchNeopetToggleBankIcon');
@@ -4047,18 +4098,12 @@
   const searchNeopetNotesInput = document.getElementById('searchNeopetNotesInput');
   const searchNeopetOwnerCopyBtn = document.getElementById('searchNeopetOwnerCopyBtn');
 
-  function clearSearchNeopetOwnerHint() {
-    searchNeopetOwnerInput.classList.remove('border-rose-400', 'ring-2', 'ring-rose-200');
-    searchNeopetOwnerHint.classList.add('hidden');
-  }
-
   function openSearchNeopetModal() {
     searchNeopetNameInput.value = '';
     searchNeopetOwnerInput.value = '';
-    clearSearchNeopetOwnerHint();
-    searchNeopetCtaRow.classList.add('hidden');
-    searchNeopetViewOwnerBtn.classList.add('hidden');
-    searchNeopetOwnerCopyBtn.classList.add('hidden');
+    searchNeopetSearchBtn.classList.add('hidden');
+    searchNeopetOwnerCtaGroup.classList.add('hidden');
+    searchNeopetOwnerCtaGroup.classList.remove('flex');
     searchNeopetBankFields.classList.add('hidden');
     searchNeopetToggleBankIcon.classList.remove('rotate-45');
     searchNeopetToggleBankLabel.textContent = 'Add name';
@@ -4077,38 +4122,26 @@
     if (e.key === 'Escape' && !searchNeopetModal.classList.contains('hidden')) closeSearchNeopetModal();
   });
 
-  // The three lookup buttons just read whatever's currently typed — no
-  // separate "search" submit step, so they always reflect the live name.
+  // Both inline CTAs just read whatever's currently typed — no separate
+  // "search" submit step, so they always reflect the live field.
   searchNeopetNameInput.addEventListener('input', () => {
-    searchNeopetCtaRow.classList.toggle('hidden', !searchNeopetNameInput.value.trim());
+    searchNeopetSearchBtn.classList.toggle('hidden', !searchNeopetNameInput.value.trim());
   });
   searchNeopetOwnerInput.addEventListener('input', () => {
-    clearSearchNeopetOwnerHint();
-    searchNeopetViewOwnerBtn.classList.toggle('hidden', !searchNeopetOwnerInput.value.trim());
-    searchNeopetOwnerCopyBtn.classList.toggle('hidden', !searchNeopetOwnerInput.value.trim());
+    const show = !!searchNeopetOwnerInput.value.trim();
+    searchNeopetOwnerCtaGroup.classList.toggle('hidden', !show);
+    searchNeopetOwnerCtaGroup.classList.toggle('flex', show);
   });
 
-  document.getElementById('searchNeopetViewPetBtn').addEventListener('click', () => {
+  searchNeopetSearchBtn.addEventListener('click', () => {
     const name = searchNeopetNameInput.value.trim();
     if (name) window.open(buildPetLookupUrl(name), '_blank', 'noopener,noreferrer');
   });
-  document.getElementById('searchNeopetViewPetpageBtn').addEventListener('click', () => {
-    const name = searchNeopetNameInput.value.trim();
-    if (name) window.open(buildPetPageUrl(name), '_blank', 'noopener,noreferrer');
-  });
-  document.getElementById('searchNeopetViewOwnerBtn').addEventListener('click', () => {
-    const name = searchNeopetNameInput.value.trim();
-    if (!name) return;
+  // Only ever visible once there's something typed in the owner field (see
+  // the input listener above), so there's always a value to read here.
+  searchNeopetViewOwnerBtn.addEventListener('click', () => {
     const owner = searchNeopetOwnerInput.value.trim();
-    if (!owner) {
-      // No modal-on-modal prompt here — there's no pet record to save
-      // to yet, so just point at the field that needs filling in.
-      searchNeopetOwnerInput.focus();
-      searchNeopetOwnerInput.classList.add('border-rose-400', 'ring-2', 'ring-rose-200');
-      searchNeopetOwnerHint.classList.remove('hidden');
-      return;
-    }
-    window.open(buildOwnerLookupUrl(owner), '_blank', 'noopener,noreferrer');
+    if (owner) window.open(buildOwnerLookupUrl(owner), '_blank', 'noopener,noreferrer');
   });
 
   searchNeopetOwnerCopyBtn.addEventListener('click', () => {
