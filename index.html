@@ -245,6 +245,19 @@
        floating in a lot of empty space. Scale it to fill the card instead. */
     .preview-outer-frame { width: 100%; box-sizing: border-box; }
     .preview-inner-frame { width: 100% !important; height: auto !important; aspect-ratio: 1 / 1; }
+    /* Pet wishlist: same single-column, full-width square treatment as the
+       cards above — wishlist cards were still stuck at a fixed 185x185px
+       regardless of screen size, so on a phone they ended up small and
+       stranded with empty space beside them instead of filling the row
+       the way every other card grid in the app already does. */
+    .wishlist-card { width: 100% !important; height: auto !important; aspect-ratio: 1 / 1; }
+    /* Pet lookup page: the framed white card's own border+padding (50px
+       total between both sides) eats a much bigger share of a 375px
+       phone screen than it ever does on desktop. Thinner on small
+       screens only — this is purely cosmetic scaling, not the overflow
+       fix above (that's the box-sizing change on .lookup-border-x
+       itself, which applies at every width). */
+    .lookup-border-x { padding: 6px; border-left-width: 8px; border-right-width: 8px; }
   }
 
   #cardMenu { position: fixed; z-index: 60; }
@@ -315,9 +328,23 @@
   }
   .lookup-page { background: var(--lk-bg); transition: background .15s ease; }
   .lookup-border-x {
-    box-sizing: content-box; /* the 830px below is the inner content width; the 15px borders + 10px padding frame it on top of that */
+    /* border-box, not content-box: with content-box, the 15px borders +
+       10px padding on each side were added ON TOP OF whatever width value
+       was in effect, making this element 50px wider than its container
+       any time `width: 100%` (rather than the 830px cap below) was the
+       one actually driving its size — i.e. on any screen narrower than
+       880px. That 50px horizontal overflow was the real cause of the
+       whole lookup page overflowing sideways on mobile: the page's
+       background and the glass Back/Customize bar above this element
+       both stay correctly sized to the viewport, so once this element
+       pushed 50px past them, the two visibly stopped lining up.
+       With border-box, max-width below already includes that same
+       50px of border+padding, so the content area still resolves to
+       exactly 830px at that cap — same visual result on a wide screen,
+       just without silently growing past its box on a narrow one. */
+    box-sizing: border-box;
     width: 100%;
-    max-width: 830px;
+    max-width: 880px;
     padding: 10px;
     border-left: 15px solid var(--lk-border);
     border-right: 15px solid var(--lk-border);
@@ -1219,7 +1246,7 @@
 
 <!-- ======================= PET DETAIL / LOOKUP VIEW ======================= -->
 <div id="petDetailView" class="hidden">
-  <div id="lookupPage" class="lookup-page min-h-screen py-8 px-4">
+  <div id="lookupPage" class="lookup-page min-h-screen py-8 px-2 sm:px-4">
     <div class="max-w-[880px] mx-auto">
 
       <div class="w-full mb-10 bg-white/50 backdrop-blur-[20px] backdrop-saturate-[180%] border border-white/60 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] px-6 py-3.5 flex items-center justify-between">
@@ -1238,7 +1265,7 @@
           <p class="text-sm font-semibold text-[#6E8880]">Loading lookup...</p>
         </div>
         <div id="lookupInner" class="lookup-border-x bg-white mx-auto lookup-fade">
-        <div class="pt-8 pb-5 px-6">
+        <div class="pt-8 pb-5 px-3 sm:px-6">
           <h2 class="text-center text-[22px] sm:text-[30px] font-extrabold text-[#1c1c1c] leading-tight">
             <span id="detailPetNameText"></span> the
             <span id="detailPetColor" class="lookup-title-accent lookup-editable cursor-pointer" title="Click to edit color"></span>
@@ -1246,7 +1273,7 @@
           </h2>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-[500px_300px] justify-center gap-x-[8px] px-6 lg:px-0">
+        <div class="grid grid-cols-1 lg:grid-cols-[500px_300px] justify-center gap-x-[8px] px-3 sm:px-6 lg:px-0">
           <!-- LEFT: neopet (fixed 500x500 stage) -->
           <div class="lg:w-[500px]">
             <div class="lookup-section-header h-[35px] flex items-center justify-center text-xs font-normal">n e o p e t</div>
@@ -1265,7 +1292,7 @@
 
         <div class="lg:max-w-[808px] lg:mx-auto">
           <div class="lookup-section-header h-[35px] flex items-center justify-center text-xs font-normal">d e s c r i p t i o n</div>
-          <div class="max-w-[800px] mx-auto px-6 py-4">
+          <div class="max-w-[800px] mx-auto px-3 sm:px-6 py-4">
             <div id="descriptionZone"></div>
           </div>
         </div>
