@@ -946,9 +946,9 @@
        overwriting something newer from another device, once a sync does
        go through. This used to fail with zero indication to the user at
        all. -->
-  <div id="syncFailedBanner" class="hidden bg-rose-600 text-white text-sm font-semibold px-4 py-2.5 flex items-center justify-center gap-3 flex-wrap text-center shadow-md">
+  <div id="syncFailedBanner" class="hidden bg-amber-500 text-white text-sm font-semibold px-4 py-2.5 flex items-center justify-center gap-3 flex-wrap text-center shadow-md">
     <span>⚠️ Couldn't confirm you have the latest saved data — check your connection before making changes.</span>
-    <button id="syncFailedRetryBtn" type="button" class="underline font-bold hover:text-rose-100 transition shrink-0">Retry now</button>
+    <button id="syncFailedRetryBtn" type="button" class="underline font-bold hover:text-amber-100 transition shrink-0">Retry now</button>
   </div>
 </div>
 
@@ -4082,7 +4082,16 @@
     const card = e.target.closest('.name-bank-card');
     if (!card) return;
     if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'move';
+      // 'copyMove', not just 'move': this same drag now has two valid drop
+      // targets with different dropEffects — category pills use 'move'
+      // (see the dragover handler just below), pet cards use 'copy' (see
+      // the .image-assign-target dragover handler further down, shared
+      // with the deck-image drag). A dropEffect the browser considers
+      // incompatible with effectAllowed gets silently rejected — the drag
+      // just snaps back to its origin with no error and no drop event
+      // ever reaching the pet-card handler, which is exactly what 'move'
+      // alone was causing here.
+      e.dataTransfer.effectAllowed = 'copyMove';
       try { e.dataTransfer.setData('text/plain', 'bankpet:' + card.dataset.petId); } catch (err) { console.error('Name Bank drag start: setData failed', err); }
     }
   });
@@ -4545,7 +4554,43 @@
     if (!drop) return;
     e.preventDefault();
     drop.classList.remove('drop-target-active');
-    const imgId = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || draggedDeckImgId;
+    const rawTransfer = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || '';
+
+    // Dragging a Name Bank card onto an already-pictured pet card: pair the
+    // dragged name into that card's stack (same "one look, multiple names"
+    // outcome as picking a winner in a cluster, just started from the
+    // opposite direction — dragging the bare name TO the picture instead
+    // of dragging a picture onto it). Deliberately a separate branch from
+    // the deck-image handling below rather than folding into it, since the
+    // source id here is a PET being dragged, not a staged image.
+    if (rawTransfer.startsWith('bankpet:')) {
+      const sourcePet = pets.find(p => p.id === rawTransfer.slice('bankpet:'.length));
+      const targetPet = pets.find(p => p.id === drop.dataset.petId);
+      if (!sourcePet || !targetPet || sourcePet.id === targetPet.id || !targetPet.imageSrc) return;
+
+      // Same guard rails as every other "assign this image" entry point —
+      // see their own comments a few lines below for what each catches.
+      if (!(await confirmImageMergeIfNeeded(petExistingImages(sourcePet), targetPet.imageSrc, sourcePet.id))) return;
+      if (!(await confirmUnbindIfNeeded(sourcePet, targetPet.imageSrc))) return;
+
+      assignPetMainImage(sourcePet, targetPet.imageSrc);
+      // A Name Bank category no longer means anything once this pet has an
+      // actual picture — same as every other path off of the Name Bank
+      // (Archive, dropping a deck image on it below) leaving no stale
+      // category behind.
+      sourcePet.bankCategory = null;
+      dirtyPetIds.add(sourcePet.id);
+      savePets();
+      renderGrid();
+      showToast(`"${sourcePet.name}" added to name stack`);
+      sbSavePetsToSettings(pets).then(({ error }) => {
+        if (error) console.error('Supabase pet save error (name bank drag onto card):', error);
+        else dirtyPetIds.delete(sourcePet.id);
+      });
+      return;
+    }
+
+    const imgId = rawTransfer || draggedDeckImgId;
     draggedDeckImgId = null;
     if (!imgId) { console.error('Pet card drop: no dragged image id available (dataTransfer was empty and no fallback id was captured).'); return; }
     const img = stagedImages.find(i => i.id === imgId);
