@@ -93,7 +93,7 @@
      corner near the pill that opens it. */
   #searchNeopetPillBtn {
     position: fixed; right: 20px; bottom: 20px; z-index: 90;
-    display: inline-flex; align-items: center; gap: 8px;
+    align-items: center; gap: 8px;
     background: #011F14; color: #ffffff; border: none;
     padding: 13px 20px; border-radius: 999px;
     font-weight: 800; font-size: 13px; line-height: 1; white-space: nowrap;
@@ -101,6 +101,12 @@
     transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
     cursor: pointer;
   }
+  /* display lives here, scoped to :not(.hidden), rather than on the plain
+     #searchNeopetPillBtn rule above — an ID selector otherwise beats
+     Tailwind's single-class ".hidden" rule on specificity alone, which
+     would silently keep this pill visible even while JS toggles "hidden"
+     onto it (see setView's pet-detail-view handling). */
+  #searchNeopetPillBtn:not(.hidden) { display: inline-flex; }
   #searchNeopetPillBtn:hover { background: #0B3B2A; transform: translateY(-1px); box-shadow: 0 12px 26px rgba(1,31,20,0.34), 0 4px 12px rgba(1,31,20,0.2); }
   #searchNeopetPillBtn:active { transform: translateY(0); }
   #searchNeopetPillBtn.pill-open { background: #15B8B0; }
@@ -157,18 +163,24 @@
        "stuck", the background/border/shadow fading in) instead of the old
        instant, jarring snap. */
     transition: background-color .25s ease, border-color .25s ease, box-shadow .25s ease, padding-top .25s ease;
-    /* #viewTabsRow (the child right inside this bar) carries its own
-       top margin (mt-2) for the gap above the tab labels. Without this,
-       that margin "collapses" straight through this bar's own box —
-       a well-known CSS quirk where a child's top margin, when nothing
-       (no border/padding) separates it from the parent's edge, escapes
-       upward past the parent instead of pushing the parent's own
-       background down with it. The visible result was a sliver of the
-       page's background color showing above this bar's white/themed
-       background, right where a solid edge was expected. Establishing
-       a new block-formatting-context here contains that margin inside
-       the bar instead, so the background fills the full gap with no
-       code needed on the child. */
+  }
+  /* #viewTabsRow (the child right inside this bar) carries its own top
+     margin (mt-2) for the gap above the tab labels. Without this, that
+     margin "collapses" straight through this bar's own box — a well-known
+     CSS quirk where a child's top margin, when nothing (no border/padding)
+     separates it from the parent's edge, escapes upward past the parent
+     instead of pushing the parent's own background down with it. The
+     visible result was a sliver of the page's background color showing
+     above this bar's white/themed background, right where a solid edge
+     was expected. Establishing a new block-formatting-context here
+     contains that margin inside the bar instead, so the background fills
+     the full gap with no code needed on the child.
+     Scoped to :not(.hidden) rather than plain #viewTabsBar: an ID
+     selector otherwise beats Tailwind's single-class ".hidden" rule on
+     specificity alone, which was quietly forcing this bar to stay
+     visible (display:flow-root winning over display:none) on every view
+     that hides it via that class — including the pet detail/lookup page. */
+  #viewTabsBar:not(.hidden) {
     display: flow-root;
   }
   #viewTabsBar.tabs-sticky { position: sticky; top: 0; z-index: 60; }
@@ -1794,13 +1806,38 @@
     clearTimeout(stagedImagesSyncTimer);
     stagedImagesSyncTimer = setTimeout(sbSaveStagedImagesToSettings, 400);
   }
+  // Pet wishlist images — same "used to be local-storage-only" history as
+  // the Image Deck above (see STAGED_IMAGES_SETTINGS_KEY's comment): the
+  // image FILE itself was already being uploaded to Storage on add
+  // (stageWishlistFile already calls sbUploadAsset), but the resulting URL
+  // and the wishlist entry (note, addedAt) never made it into the settings
+  // table, so a second device never learned the wishlist existed at all.
+  // Wired up the same way as stagedImages from here down: same
+  // upload-before-sync skip for a not-yet-uploaded base64 fallback item,
+  // same tombstone list for deletions.
+  const WISHLIST_SETTINGS_KEY = 'wishlist_images';
+  const DELETED_WISHLIST_SETTINGS_KEY = 'deleted_wishlist_ids';
+  function wishlistImagesForSync() {
+    return wishlistImages.filter(img => img.src && !img.src.startsWith('data:'));
+  }
+  function sbSaveWishlistToSettings() {
+    if (!bootstrapDone) return Promise.resolve({ error: null });
+    return sbSaveSetting(WISHLIST_SETTINGS_KEY, wishlistImagesForSync());
+  }
+  let wishlistSyncTimer = null;
+  function sbSyncWishlistDebounced() {
+    if (!supabase) return;
+    clearTimeout(wishlistSyncTimer);
+    wishlistSyncTimer = setTimeout(sbSaveWishlistToSettings, 400);
+  }
   // In-memory mirror of the text-only version of every pet lookup (colors,
-  // petpet name/species, description) that's allowed to leave this device —
-  // see buildSyncedLookupEntry for exactly what's excluded. Built fresh from
-  // IndexedDB at bootstrap (idbGetAllLookups) and kept in sync incrementally
-  // after that as persistLookup runs, rather than re-scanning IndexedDB on
-  // every save, since a settings push always needs the FULL map (same
-  // one-row-per-key shape as pets_data), not just whichever pet just changed.
+  // petpet name/species, description, which render is active) that's
+  // allowed to leave this device — see buildSyncedLookupEntry for exactly
+  // what's excluded. Built fresh from IndexedDB at bootstrap
+  // (idbGetAllLookups) and kept in sync incrementally after that as
+  // persistLookup runs, rather than re-scanning IndexedDB on every save,
+  // since a settings push always needs the FULL map (same one-row-per-key
+  // shape as pets_data), not just whichever pet just changed.
   let syncedLookups = {};
   let lookupSyncTimer = null;
   function sbSyncLookupsDebounced() {
@@ -1819,12 +1856,14 @@
     return tmp.innerHTML;
   }
   // Builds the text-only payload for one pet's lookup — the thing that
-  // actually leaves this device. Petpet's own image gets the same
-  // local-only treatment as description images when it's a pasted data:
-  // URL (the only way it can be — see the paste handler in armPetpetPaste's
-  // section — nothing about petpet images ever uploads to Storage), for the
-  // same reason: syncing it as-is would mean shipping a raw base64 blob
-  // through the settings table on every save.
+  // actually leaves this device. The petpet image DOES get uploaded to
+  // Storage (see the paste handler in armPetpetPaste's section, and the
+  // background retry pass in bootstrapFromSupabase for anything that
+  // failed to upload while offline) — same as every other image in this
+  // app, it's only excluded here in the narrow window before that upload
+  // resolves, same guard stagedImagesForSync uses. activeMediaId — which
+  // render is currently on the stage — syncs too, so every device shows
+  // the same one instead of each falling back to its own default.
   function buildSyncedLookupEntry(snapshot) {
     const petpetImg = snapshot.petpet && snapshot.petpet.imageUrl;
     return {
@@ -1835,6 +1874,7 @@
         imageUrl: (petpetImg && !petpetImg.startsWith('data:')) ? petpetImg : ''
       },
       description: stripImagesFromHTML(snapshot.description || ''),
+      activeMediaId: snapshot.activeMediaId || '',
       savedAt: Date.now()
     };
   }
@@ -2041,6 +2081,7 @@
   const STORAGE_IMAGES = 'neo_tracker_images_v1';
   const STORAGE_DELETED_IMAGE_IDS = 'neo_tracker_deleted_image_ids_v1'; // local mirror of DELETED_IMAGES_SETTINGS_KEY — see that constant's comment
   const STORAGE_WISHLIST_IMAGES = 'neo_wishlist_images_v1';
+  const STORAGE_DELETED_WISHLIST_IDS = 'neo_deleted_wishlist_ids_v1'; // local mirror of DELETED_WISHLIST_SETTINGS_KEY — see that constant's comment
   const STORAGE_ACCOUNTS = 'neo_tracker_accounts_v1';
   const STORAGE_HIDDEN_ACCOUNTS = 'neo_tracker_hidden_accounts_v1'; // accounts hidden from the Preview "Pets on [Account]" dropdown
   const STORAGE_STATUSES = 'neo_tracker_statuses_v1';
@@ -2092,6 +2133,9 @@
   // Looks deck, which is built for a different job: quickly dragging a
   // finished asset onto a name.
   let wishlistImages = loadJSON(STORAGE_WISHLIST_IMAGES, []); // [{id, src, note, addedAt}]
+  // Deleted-wishlist-image tombstones — same reasoning as deletedImageIds
+  // above, just for the wishlist instead of the Image Deck.
+  let deletedWishlistIds = new Set(loadJSON(STORAGE_DELETED_WISHLIST_IDS, []));
   let filters = { search: '', accounts: new Set(), statuses: new Set(), imageSrc: null, mp: false, showCompleted: false };
   // Which visual clusters (keyed by the shared imageSrc) are currently
   // expanded in the grid. Transient UI state only — never persisted.
@@ -2191,7 +2235,10 @@
     safeLocalStorageSet(STORAGE_IMAGES, JSON.stringify(stagedImages));
     sbSyncStagedImagesDebounced();
   }
-  function saveWishlistImages() { safeLocalStorageSet(STORAGE_WISHLIST_IMAGES, JSON.stringify(wishlistImages)); }
+  function saveWishlistImages() {
+    safeLocalStorageSet(STORAGE_WISHLIST_IMAGES, JSON.stringify(wishlistImages));
+    sbSyncWishlistDebounced();
+  }
   function saveTags() {
     safeLocalStorageSet(STORAGE_ACCOUNTS, JSON.stringify(ACCOUNTS));
     safeLocalStorageSet(STORAGE_STATUSES, JSON.stringify(STATUSES));
@@ -2218,6 +2265,12 @@
     const arr = [...deletedImageIds];
     safeLocalStorageSet(STORAGE_DELETED_IMAGE_IDS, JSON.stringify(arr));
     sbSaveSetting(DELETED_IMAGES_SETTINGS_KEY, arr);
+  }
+  // Same as saveDeletedImageIds(), for the wishlist's own tombstones.
+  function saveDeletedWishlistIds() {
+    const arr = [...deletedWishlistIds];
+    safeLocalStorageSet(STORAGE_DELETED_WISHLIST_IDS, JSON.stringify(arr));
+    sbSaveSetting(DELETED_WISHLIST_SETTINGS_KEY, arr);
   }
   function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
@@ -2573,6 +2626,17 @@
     if (viewTabsSentinel) viewTabsSentinel.classList.toggle('hidden', isDetail);
     tabTracker.classList.toggle('active', isTracker);
     tabPreview.classList.toggle('active', isPreview || isDetail);
+
+    // Floating "Search Neopets" pill: fixed-position and otherwise always
+    // on screen regardless of view, which crowded the lookup page's own
+    // corner content (its Back/Customize row, the color picker popover,
+    // etc). Hidden here the same way the header/tabs bar already are.
+    // searchNeopetPillBtn/searchNeopetModal are declared with `const`
+    // further down the file, but this function body only runs later, once
+    // every top-level const in this scope has already been assigned — so
+    // referencing them here is safe despite the declaration order.
+    if (searchNeopetPillBtn) searchNeopetPillBtn.classList.toggle('hidden', isDetail);
+    if (isDetail && searchNeopetModal && !searchNeopetModal.classList.contains('hidden')) closeSearchNeopetModal();
 
     // leaving the detail view: release the object URL for whatever media was playing
     if (!isDetail) {
@@ -3628,6 +3692,8 @@
     const data = wishlistImages[idx];
     wishlistImages.splice(idx, 1);
     saveWishlistImages();
+    deletedWishlistIds.add(data.id);
+    saveDeletedWishlistIds();
     lastDeleted = { type: 'wishlist-image', data, index: idx };
     showToast('Removed from wishlist');
     renderWishlist();
@@ -5925,6 +5991,7 @@
     if (!petpetPasteArmed || !currentLookup) return;
     const clipboard = e.clipboardData || window.clipboardData;
     if (!clipboard) return;
+    const petNameAtPaste = currentDetailPetName;
 
     // an actual image file/blob on the clipboard takes priority
     const items = clipboard.items;
@@ -5941,10 +6008,29 @@
                 reader.onerror = reject;
                 reader.readAsDataURL(file);
               });
+              // 1) instant feedback from the local data: URL — no waiting
+              // on a network round-trip before the petpet zone updates.
               currentLookup.petpet.imageUrl = dataUrl;
               persistLookup();
               renderPetpetZone();
               showSaveToast();
+              // 2) upload to Storage in the background and swap over to the
+              // real URL once it resolves — only an uploaded URL (never a
+              // data: URL) is allowed to sync to other devices, same rule
+              // every other image in this app follows (see
+              // buildSyncedLookupEntry). Guarded against the user having
+              // since navigated to a different pet or pasted a different
+              // image over this one before the upload finished.
+              sbUploadAsset(file, `petpet-images/${encodeURIComponent(getMediaKey(petNameAtPaste))}`)
+                .then((url) => {
+                  if (!url) return;
+                  if (currentDetailPetName === petNameAtPaste && currentLookup && currentLookup.petpet.imageUrl === dataUrl) {
+                    currentLookup.petpet.imageUrl = url;
+                    persistLookup();
+                    renderPetpetZone();
+                  }
+                })
+                .catch((err) => console.error('Petpet image Storage upload error:', err));
             } catch (err) {
               await appAlert('Could not read that image from the clipboard.', 'Paste failed');
             }
@@ -5955,7 +6041,8 @@
       }
     }
 
-    // otherwise, fall back to plain pasted text as an image URL
+    // otherwise, fall back to plain pasted text as an image URL — already
+    // a real URL (not a data: URL), so it syncs as-is with no upload step.
     const text = (clipboard.getData ? clipboard.getData('text') : '') || '';
     const trimmed = text.trim();
     if (trimmed) {
@@ -6510,7 +6597,24 @@
     }
 
     const requestedId = forceId || (currentLookup && currentLookup.activeMediaId) || '';
-    const activeEntry = list.find(m => m.id === requestedId) || list[0];
+    let activeEntry = list.find(m => m.id === requestedId);
+    if (!activeEntry && requestedId) {
+      // The requested render might not be cached in this device's own
+      // IndexedDB — e.g. it was picked as active on a different device —
+      // even though this device does have OTHER renders stored locally.
+      // Check the cloud mirror for that exact id before falling back to
+      // whatever happens to be first in the local list, so the same
+      // render shows up consistently everywhere instead of only when it
+      // happens to already be cached here too.
+      const cloudEntries = getMediaCloudEntries(getMediaKey(petAtRequestTime));
+      const cloudEntry = cloudEntries.find(e => e.id === requestedId);
+      if (cloudEntry) {
+        currentActiveMediaId = cloudEntry.id;
+        renderMediaElement(cloudEntry.url, detectMediaKind(cloudEntry.mime, cloudEntry.url), cloudEntry.mime);
+        return;
+      }
+    }
+    if (!activeEntry) activeEntry = list[0];
     currentActiveMediaId = activeEntry.id;
     if (isUnlocked && currentLookup.activeMediaId !== currentActiveMediaId) {
       currentLookup.activeMediaId = currentActiveMediaId;
@@ -7201,6 +7305,8 @@
       saveImages(); renderDeck(); renderGrid();
     } else if (lastDeleted.type === 'wishlist-image') {
       wishlistImages.splice(Math.min(lastDeleted.index, wishlistImages.length), 0, lastDeleted.data);
+      deletedWishlistIds.delete(lastDeleted.data.id);
+      saveDeletedWishlistIds();
       saveWishlistImages(); renderWishlist();
     } else if (lastDeleted.type === 'media') {
       try {
@@ -7664,6 +7770,58 @@
       if (imageTombstonesChanged) saveDeletedImageIds();
     }
 
+    // ---- Pet wishlist ----
+    // Same history and same reconciliation shape as the Image Deck block
+    // just above — see its opening comment. wishlistChanged is tracked
+    // separately from the shared `changed` flag above (which only drives
+    // renderDeck/renderGrid/renderPreview) so renderWishlist() only runs
+    // when the wishlist itself actually moved.
+    const remoteWishlist = (remoteSettings && Array.isArray(remoteSettings[WISHLIST_SETTINGS_KEY])) ? remoteSettings[WISHLIST_SETTINGS_KEY] : null;
+    const remoteDeletedWishlistIds = (remoteSettings && Array.isArray(remoteSettings[DELETED_WISHLIST_SETTINGS_KEY])) ? remoteSettings[DELETED_WISHLIST_SETTINGS_KEY] : [];
+    let wishlistTombstonesChanged = false;
+    remoteDeletedWishlistIds.forEach(id => {
+      if (!deletedWishlistIds.has(id)) { deletedWishlistIds.add(id); wishlistTombstonesChanged = true; }
+    });
+    let wishlistChanged = false;
+    try {
+      if (remoteWishlist && remoteWishlist.length > 0) {
+        wishlistChanged = true;
+        const remoteWishById = new Map(remoteWishlist.map(i => [i.id, i]));
+        const localWishKeep = wishlistImages.filter(i => !deletedWishlistIds.has(i.id) && !remoteWishById.has(i.id));
+        const remoteWishKeep = remoteWishlist.filter(i => !deletedWishlistIds.has(i.id));
+        wishlistImages = [...localWishKeep, ...remoteWishKeep];
+        safeLocalStorageSet(STORAGE_WISHLIST_IMAGES, JSON.stringify(wishlistImages));
+      } else if (deletedWishlistIds.size > 0) {
+        const before = wishlistImages.length;
+        wishlistImages = wishlistImages.filter(i => !deletedWishlistIds.has(i.id));
+        if (wishlistImages.length !== before) {
+          wishlistChanged = true;
+          safeLocalStorageSet(STORAGE_WISHLIST_IMAGES, JSON.stringify(wishlistImages));
+        }
+      }
+      // Same background repair pass as the Image Deck's above: any wishlist
+      // item still holding a raw base64 src fell back to local-only storage
+      // while offline and never made it to Storage, so retry the upload now
+      // that this fetch has confirmed we're online.
+      if (!fetchFailed) {
+        for (const img of wishlistImages) {
+          if (!img.src || !img.src.startsWith('data:')) continue;
+          try {
+            const file = dataUrlToFile(img.src, `${img.id}.png`);
+            const publicUrl = await sbUploadAsset(file, 'wishlist-images');
+            if (publicUrl) { img.src = publicUrl; wishlistChanged = true; }
+          } catch (e) { console.error('Background retry-upload failed for a wishlist image — will try again next time:', e); }
+        }
+        safeLocalStorageSet(STORAGE_WISHLIST_IMAGES, JSON.stringify(wishlistImages));
+      }
+    } catch (e) {
+      console.error('Unexpected error while merging the wishlist from Supabase — continuing with local data only:', e);
+    } finally {
+      if (!fetchFailed) sbSaveWishlistToSettings();
+      if (wishlistTombstonesChanged) saveDeletedWishlistIds();
+      if (wishlistChanged) renderWishlist();
+    }
+
     if (remoteSettings) {
       if (Array.isArray(remoteSettings.accounts) && remoteSettings.accounts.length) {
         ACCOUNTS = remoteSettings.accounts;
@@ -7714,7 +7872,7 @@
       if (currentView === 'preview') renderPreview();
     }
 
-    // ---- pet lookups (colors/petpet/description, text-only) ----
+    // ---- pet lookups (colors/petpet/description/active render, text-only) ----
     // Own try/catch, matching the pets block above: nothing in here should
     // be able to take down the rest of bootstrap or leave bootstrapDone
     // (already true by this point) meaning something different than it
@@ -7722,8 +7880,13 @@
     try {
       const remoteLookups = (remoteSettings && remoteSettings[LOOKUPS_SETTINGS_KEY] && typeof remoteSettings[LOOKUPS_SETTINGS_KEY] === 'object') ? remoteSettings[LOOKUPS_SETTINGS_KEY] : {};
       const localRecords = await idbGetAllLookups();
+      // Raw records too (buildSyncedLookupEntry's return value drops the
+      // per-device-only mediaUrl field), so a winning remote entry can be
+      // written back into IDB below without clobbering that field.
+      const localRecordsByName = {};
       const localLookups = {};
       localRecords.forEach((rec) => {
+        localRecordsByName[rec.name] = rec;
         const entry = buildSyncedLookupEntry(rec);
         entry.savedAt = rec.savedAt || 0; // the record's real save time, not "now" — buildSyncedLookupEntry stamps "now" for the live-save path, not this bulk read
         localLookups[rec.name] = entry;
@@ -7732,20 +7895,75 @@
       new Set([...Object.keys(localLookups), ...Object.keys(remoteLookups)]).forEach((key) => {
         const local = localLookups[key];
         const remote = remoteLookups[key];
+        let winner;
         if (local && remote) {
-          mergedLookups[key] = ((remote.savedAt || 0) > (local.savedAt || 0)) ? remote : local;
+          winner = ((remote.savedAt || 0) > (local.savedAt || 0)) ? remote : local;
         } else {
-          mergedLookups[key] = local || remote;
+          winner = local || remote;
         }
-        // Exists remotely but was never touched on this device — write a
-        // local, text-only copy so opening that pet's detail view here
-        // shows the synced content instead of nothing. Video/media fields
-        // stay empty; this device genuinely has no render for it.
-        if (!local && remote) {
-          idbSetLookup(key, { theme: remote.theme, petpet: remote.petpet, description: remote.description, mediaUrl: '', activeMediaId: '' });
+        mergedLookups[key] = winner;
+        // Whenever the remote copy wins — either because this device never
+        // had a local record for this pet at all, or because remote's
+        // savedAt is newer — write it into this device's own IndexedDB too.
+        // Previously this only happened in the "never had a local record"
+        // case: a newer remote entry would win the comparison above and
+        // get folded into the in-memory push mirror (syncedLookups, used
+        // only for the next PUSH to Supabase), but never actually reach
+        // IndexedDB — which is the ONLY thing enterPetDetail() reads from
+        // when opening a pet's lookup. The result: a device that had
+        // already visited a pet's lookup once would keep showing its own
+        // stale local copy of the theme/description/petpet/active-render
+        // forever, no matter how many times the page was refreshed,
+        // because the "this is now stale, remote should win" conclusion
+        // was never actually saved anywhere durable on that device.
+        if (winner === remote) {
+          const rec = localRecordsByName[key];
+          idbSetLookup(key, {
+            theme: remote.theme,
+            petpet: remote.petpet,
+            description: remote.description,
+            // mediaUrl is a legacy single-URL field, never part of the
+            // synced payload (see buildSyncedLookupEntry) — preserve
+            // whatever this device already had for it rather than
+            // blanking it out.
+            mediaUrl: (rec && typeof rec.mediaUrl === 'string') ? rec.mediaUrl : '',
+            // Which render is "active" now syncs like everything else
+            // here — falls back to this device's own prior choice, then
+            // to empty (renderDetailMedia treats that as "use whatever's
+            // first/most recent"), rather than always wiping it.
+            activeMediaId: (typeof remote.activeMediaId === 'string' && remote.activeMediaId)
+              ? remote.activeMediaId
+              : ((rec && typeof rec.activeMediaId === 'string') ? rec.activeMediaId : '')
+          });
         }
       });
       syncedLookups = mergedLookups;
+      // Best-effort repair pass, same idea as the Image Deck's retry-upload
+      // loop below: a petpet image pasted while offline (or while a
+      // Storage upload failed) falls back to a local data: URL, which
+      // buildSyncedLookupEntry deliberately excludes from what's pushed to
+      // Supabase — so it stays invisible to every other device until it's
+      // actually uploaded. Retry now that this fetch has confirmed we're
+      // online.
+      if (!fetchFailed) {
+        for (const rec of localRecords) {
+          const petpetUrl = rec.petpet && rec.petpet.imageUrl;
+          if (!petpetUrl || !petpetUrl.startsWith('data:')) continue;
+          try {
+            const file = dataUrlToFile(petpetUrl, `${genId()}.png`);
+            const publicUrl = await sbUploadAsset(file, `petpet-images/${encodeURIComponent(getMediaKey(rec.name))}`);
+            if (!publicUrl) continue;
+            rec.petpet.imageUrl = publicUrl;
+            await idbSetLookup(rec.name, rec);
+            syncedLookups[rec.name] = buildSyncedLookupEntry(rec);
+            // Live-update the open pet's petpet zone too, if it's this one.
+            if (currentDetailPetName === rec.name && currentLookup) {
+              currentLookup.petpet.imageUrl = publicUrl;
+              safeCall(renderPetpetZone);
+            }
+          } catch (e) { console.error('Background retry-upload failed for a petpet image — will try again next time:', e); }
+        }
+      }
     } catch (e) {
       console.error('Unexpected error while merging pet lookups from Supabase — continuing with local data only:', e);
     } finally {
