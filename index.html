@@ -1534,6 +1534,23 @@
           </div>
         </div>
 
+        <!-- Only relevant to a Name Bank entry (no image yet) — toggled in
+             openModal alongside everything else that depends on the pet's
+             current state. Selecting "None" here is the only way to
+             unassign a name from its folder now that the card badge itself
+             is purely informational (see renderNameBankRow) — dragging
+             only ever MOVES a name to a different folder, never back out
+             to unassigned. -->
+        <div id="modalCategoryFieldWrap" class="hidden">
+          <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Name Bank folder</label>
+          <div class="relative">
+            <select id="modalCategorySelect" class="appearance-none w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white text-forest">
+              <option value="">None</option>
+            </select>
+            <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#6E8880]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+        </div>
+
         <div class="flex flex-col">
           <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Notes</label>
           <textarea id="modalNotesInput" rows="2" placeholder="Add any notes, keywords, or context..."
@@ -2395,6 +2412,26 @@
   })();
   function liveSyncBlocked() { return !isLiveOrigin; }
 
+  // A quick, at-a-glance signal in the browser's own tab strip for
+  // exactly the same reason liveSyncBlocked() exists — so a local copy
+  // never gets mistaken for the real site, this time just visually rather
+  // than functionally. Only ever swapped in, never the reverse: the real
+  // site keeps whatever favicon is already in the page's own <head>.
+  if (!isLiveOrigin) {
+    const localFaviconSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+      + '<rect width="100" height="100" rx="22" fill="#F97316"/>'
+      + '<path d="M18 32Q18 26 24 26L42 26L50 34L78 34Q84 34 84 40L84 70Q84 76 78 76L22 76Q16 76 16 70Z" fill="#ffffff"/>'
+      + '</svg>';
+    let faviconLink = document.querySelector('link[rel="icon"]');
+    if (!faviconLink) {
+      faviconLink = document.createElement('link');
+      faviconLink.rel = 'icon';
+      document.head.appendChild(faviconLink);
+    }
+    faviconLink.type = 'image/svg+xml';
+    faviconLink.href = 'data:image/svg+xml,' + encodeURIComponent(localFaviconSvg);
+  }
+
   const DEFAULT_PREVIEW_ACCOUNT = ''; // no pre-seeded accounts anymore; getDefaultPreviewAccount() already falls back to 'all'
   function getDefaultPreviewAccount() {
     return ACCOUNTS.includes(DEFAULT_PREVIEW_ACCOUNT) ? DEFAULT_PREVIEW_ACCOUNT : 'all';
@@ -3078,13 +3115,19 @@
   // populate modal selects (rebuildable, since tags are editable)
   const modalAccountSelect = document.getElementById('modalAccountSelect');
   const modalStatusSelect = document.getElementById('modalStatusSelect');
+  const modalCategorySelect = document.getElementById('modalCategorySelect');
   function renderModalTagOptions() {
     const curAcc = modalAccountSelect.value;
     const curSt = modalStatusSelect.value;
+    const curCat = modalCategorySelect.value;
     modalAccountSelect.innerHTML = '<option value="">None</option>' + ACCOUNTS.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
     modalStatusSelect.innerHTML = '<option value="">None</option>' + STATUSES.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    modalCategorySelect.innerHTML = '<option value="">None</option>' +
+      `<option value="${ARCHIVE_CATEGORY}">${ARCHIVE_CATEGORY}</option>` +
+      NAME_BANK_CATEGORIES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
     if (ACCOUNTS.includes(curAcc)) modalAccountSelect.value = curAcc;
     if (STATUSES.includes(curSt)) modalStatusSelect.value = curSt;
+    if (curCat === ARCHIVE_CATEGORY || NAME_BANK_CATEGORIES.includes(curCat)) modalCategorySelect.value = curCat;
   }
 
   searchInput.addEventListener('input', (e) => {
@@ -4793,6 +4836,7 @@
   const modalOwnerInput = document.getElementById('modalOwnerInput');
   const modalStatusFieldWrap = document.getElementById('modalStatusFieldWrap');
   const modalAccountFieldWrap = document.getElementById('modalAccountFieldWrap');
+  const modalCategoryFieldWrap = document.getElementById('modalCategoryFieldWrap');
   const modalOwnerFieldWrap = document.getElementById('modalOwnerFieldWrap');
   const modalOwnerCtaGroup = document.getElementById('modalOwnerCtaGroup');
   const modalOwnerCopyBtn = document.getElementById('modalOwnerCopyBtn');
@@ -4897,6 +4941,21 @@
     clearTimeout(modalNotesScrollTimer);
     modalNotesScrollTimer = setTimeout(() => modalNotesInput.classList.remove('is-scrolling'), 600);
   });
+  // Grows with typed content up to 2x its starting height (set in
+  // openModal — 52px for a new pet, 83px for editing an existing one, so
+  // the cap is 104px/166px respectively), then holds there and switches to
+  // internal scrolling instead of growing further. modalNotesBaseHeight is
+  // the source of truth for "2x what" — updated in openModal alongside the
+  // min-height it's derived from.
+  let modalNotesBaseHeight = 52;
+  function autoGrowModalNotes() {
+    const maxHeight = modalNotesBaseHeight * 2;
+    modalNotesInput.style.height = 'auto'; // shrink first so scrollHeight reflects the current content, not whatever height was previously set
+    const next = Math.min(modalNotesInput.scrollHeight, maxHeight);
+    modalNotesInput.style.setProperty('height', next + 'px', 'important');
+    modalNotesInput.style.overflowY = modalNotesInput.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  }
+  modalNotesInput.addEventListener('input', autoGrowModalNotes);
   const modalMPCheckbox = document.getElementById('modalMPCheckbox');
   const modalCompletedCheckbox = document.getElementById('modalCompletedCheckbox');
   const modalStageImg = document.getElementById('modalStageImg');
@@ -5234,12 +5293,19 @@
     // Editing a single existing pet gets a taller Notes box (60% more than
     // the default ~52px) since there's more room to fill in on a settled
     // entry; a brand-new pet (or bulk add) keeps the compact default.
-    modalNotesInput.style.setProperty('min-height', pet ? '83px' : '52px', 'important');
+    modalNotesBaseHeight = pet ? 83 : 52;
+    modalNotesInput.style.setProperty('min-height', modalNotesBaseHeight + 'px', 'important');
+    autoGrowModalNotes(); // sizes correctly right away for a pet that already has long notes, rather than waiting for the first keystroke
     modalOwnerInput.value = pet ? (pet.owner || '') : '';
     renderModalTagOptions();
     modalAccountSelect.value = pet ? (pet.account || '') : '';
     modalStatusSelect.value = pet ? (pet.status || '') : '';
     updateModalStatusDependentFields();
+    modalCategorySelect.value = pet ? (pet.bankCategory || '') : '';
+    // A category only means anything for a Name Bank entry (no image) —
+    // hidden entirely for a pictured pet, and for the "Add pet name" flow
+    // (no pet yet to have a category at all).
+    modalCategoryFieldWrap.classList.toggle('hidden', !pet || !!pet.imageSrc);
     modalMPCheckbox.checked = pet ? !!pet.hasMP : false;
     modalCompletedCheckbox.checked = pet ? !!pet.completed : false;
     pendingImageSrc = pet ? (pet.imageSrc || null) : null;
@@ -5375,6 +5441,11 @@
         pet.completed = modalCompletedCheckbox.checked;
         pet.imageSrc = finalImageSrc;
         pet.altImageSrcs = finalAltImageSrcs;
+        // A category only makes sense for a Name Bank entry — cleared
+        // whenever this pet ends up with a picture, whether it already had
+        // one (the field was hidden, so this is just re-affirming null) or
+        // gained one just now via the Looks section in this same edit.
+        pet.bankCategory = finalImageSrc ? null : (modalCategorySelect.value || null);
         savedPets = [pet];
       } else {
         // One name is just the ordinary single-add case; more than one
