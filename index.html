@@ -1465,6 +1465,16 @@
           <div id="modalStagePlaceholder" class="hidden flex-col items-center gap-2 text-center px-6">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9DB8AF" stroke-width="1.5"><path d="M12 21C12 21 4 14.5 4 9.5C4 6.5 6.2 4.5 9 4.5C10.5 4.5 11.5 5.3 12 6C12.5 5.3 13.5 4.5 15 4.5C17.8 4.5 20 6.5 20 9.5C20 14.5 12 21 12 21Z"/></svg>
           </div>
+          <!-- Hidden entirely for the "Add pet name" flow (see openModal) —
+               favoriting only means anything for a pet that already exists.
+               Always visible once shown (not hover-only like Remove below)
+               since it needs to display current state at a glance, not just
+               offer an action. Fill state is purely a pending UI toggle,
+               same as the morphing-potion/completed checkboxes elsewhere in
+               this modal — not applied to the pet until Save changes. -->
+          <button id="modalFavoriteBtn" type="button" title="Favorite this pet" class="hidden absolute top-2.5 left-2.5 z-10 w-8 h-8 rounded-full bg-forest/50 hover:bg-forest/85 flex items-center justify-center backdrop-blur-sm transition-all duration-150">
+            <svg id="modalFavoriteIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7-5.4-4.7 7.1-.6L12 2z"/></svg>
+          </button>
           <button id="modalRemoveImageBtn" aria-label="Remove image" class="hidden absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-forest/50 hover:bg-forest/85 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all duration-150 backdrop-blur-sm">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
@@ -3589,16 +3599,23 @@
     const altCount = Array.isArray(pet.altImageSrcs) ? pet.altImageSrcs.length : 0;
     return `
       <div class="pet-card self-start bg-white border border-[#E2E8E4] shadow-card card-hover overflow-hidden cursor-pointer" data-pet-id="${pet.id}">
-        <div class="image-assign-target pet-img-stage relative w-full block bg-sage overflow-hidden" data-pet-id="${pet.id}">
+        <div class="image-assign-target pet-img-stage relative w-full block bg-sage overflow-hidden group" data-pet-id="${pet.id}">
           ${pet.imageSrc
             ? `<img src="${pet.imageSrc}" class="w-full h-full object-cover pointer-events-none" alt="${escapeHtml(pet.name)}">`
             : `<div class="w-full h-full flex items-center justify-center">${placeholderSvg()}</div>`}
-          ${altCount ? `<span class="absolute top-2 right-2 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-forest/85 text-white leading-none pointer-events-none" title="${altCount} other look${altCount > 1 ? 's' : ''} saved for this pet">+${altCount} look${altCount > 1 ? 's' : ''}</span>` : ''}
+          ${altCount ? `<span class="absolute top-2 left-2 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-forest/85 text-white leading-none pointer-events-none" title="${altCount} other look${altCount > 1 ? 's' : ''} saved for this pet">+${altCount} look${altCount > 1 ? 's' : ''}</span>` : ''}
+          ${altCount ? `
+            <button type="button" data-view-looks="${pet.id}" title="View all ${altCount + 1} looks"
+              class="absolute top-2 right-2 z-10 w-6 h-6 rounded-full bg-forest text-white flex items-center justify-center shadow border-2 border-white cursor-pointer opacity-0 group-hover:opacity-100 transition">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </button>
+          ` : ''}
         </div>
         <div class="p-3">
           <div class="flex items-start justify-between gap-1">
             <div class="flex items-center gap-1 min-w-0">
-              <h3 data-name-filter="${escapeHtml(pet.name)}" class="font-extrabold text-forest text-sm truncate hover:underline cursor-pointer">${escapeHtml(pet.name)}</h3>
+              <h3 class="font-extrabold text-forest text-sm truncate">${escapeHtml(pet.name)}</h3>
+              ${pet.isFavorite ? `<svg class="shrink-0 text-amber-400" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" title="Favorite"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7-5.4-4.7 7.1-.6L12 2z"/></svg>` : ''}
               ${pet.completed ? `<svg class="shrink-0 text-emerald-500" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" title="Completed on Neopets"><path d="M20 6L9 17l-5-5"/></svg>` : ''}
             </div>
             <button data-menu-btn="${pet.id}" class="shrink-0 -mr-1 -mt-0.5 w-6 h-6 flex items-center justify-center text-[#8AA39A] hover:text-forest hover:bg-sage rounded-full transition">
@@ -3632,7 +3649,8 @@
       <div class="cluster-candidate-row flex items-center justify-between gap-1 px-2.5 py-1.5 hover:bg-sage/60 cursor-pointer border-t border-[#E2E8E4]" data-cluster-pet-id="${pet.id}">
         <span class="flex items-center gap-1 min-w-0">
           <span class="text-xs font-semibold text-forest truncate">${escapeHtml(pet.name)}</span>
-          ${pet.status === 'Untaken' ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1.5" class="shrink-0" title="Untaken"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7-5.4-4.7 7.1-.6L12 2z"/></svg>` : ''}
+          ${pet.isFavorite ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1.5" class="shrink-0" title="Favorite"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7-5.4-4.7 7.1-.6L12 2z"/></svg>` : ''}
+          ${pet.status === 'Untaken' ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="3" class="shrink-0" title="Untaken"><circle cx="12" cy="12" r="9"/></svg>` : ''}
         </span>
         ${isUnlocked ? `
           <div class="flex items-center gap-0.5 shrink-0">
@@ -3988,7 +4006,8 @@
     return `
       <div class="image-assign-target name-bank-card group relative flex items-center justify-between gap-2 p-3 rounded-xl border border-[#E2E8E4] hover:border-teal transition bg-white cursor-pointer" data-pet-id="${pet.id}" draggable="true">
         <div class="min-w-0 flex-1 flex items-center gap-1">
-          <h3 data-name-filter="${escapeHtml(pet.name)}" class="font-bold text-forest text-sm truncate hover:underline">${escapeHtml(pet.name)}</h3>
+          <h3 class="font-bold text-forest text-sm truncate">${escapeHtml(pet.name)}</h3>
+          ${pet.isFavorite ? `<svg class="shrink-0 text-amber-400" width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" title="Favorite"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7-5.4-4.7 7.1-.6L12 2z"/></svg>` : ''}
           ${pet.completed ? `<svg class="shrink-0 text-emerald-500" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" title="Completed on Neopets"><path d="M20 6L9 17l-5-5"/></svg>` : ''}
         </div>
         <div class="shrink-0 flex items-center gap-1">
@@ -4094,20 +4113,6 @@
   nameBankList.addEventListener('click', (e) => {
     const menuBtn = e.target.closest('[data-menu-btn]');
     if (menuBtn) { e.stopPropagation(); toggleCardMenu(menuBtn); return; }
-    const nameEl = e.target.closest('[data-name-filter]');
-    if (nameEl) {
-      e.stopPropagation();
-      const name = nameEl.dataset.nameFilter;
-      if (filters.search === name.toLowerCase()) {
-        filters.search = '';
-        searchInput.value = '';
-      } else {
-        filters.search = name.toLowerCase();
-        searchInput.value = name;
-      }
-      renderGrid();
-      return;
-    }
     const row = e.target.closest('[data-pet-id]');
     if (row) openModal(row.dataset.petId);
   });
@@ -4327,20 +4332,14 @@
   petGrid.addEventListener('click', (e) => {
     const menuBtn = e.target.closest('[data-menu-btn]');
     if (menuBtn) { e.stopPropagation(); toggleCardMenu(menuBtn); return; }
-    const nameEl = e.target.closest('[data-name-filter]');
-    if (nameEl) {
-      e.stopPropagation();
-      const name = nameEl.dataset.nameFilter;
-      if (filters.search === name.toLowerCase()) {
-        filters.search = '';
-        searchInput.value = '';
-      } else {
-        filters.search = name.toLowerCase();
-        searchInput.value = name;
-      }
-      renderGrid();
-      return;
-    }
+    // Same purpose as data-cluster-view-all just below, for a single pet's
+    // own extra looks rather than a cluster's other candidates — opens the
+    // same edit modal a plain click on the card would anyway, just as a
+    // clearly-labeled, discoverable shortcut specifically for "this one has
+    // more than one look, click here to see them" rather than a generic
+    // "edit this pet" click.
+    const viewLooksBtn = e.target.closest('[data-view-looks]');
+    if (viewLooksBtn) { e.stopPropagation(); openModal(viewLooksBtn.dataset.viewLooks); return; }
     const dismissBtn = e.target.closest('[data-dismiss-candidate]');
     if (dismissBtn) { e.stopPropagation(); dismissClusterCandidate(dismissBtn.dataset.dismissCandidate); return; }
     const pickBtn = e.target.closest('[data-pick-winner]');
@@ -4964,6 +4963,20 @@
   const modalDeckPicker = document.getElementById('modalDeckPicker');
   const modalDeleteBtn = document.getElementById('modalDeleteBtn');
   const modalUnpairBtn = document.getElementById('modalUnpairBtn');
+  const modalFavoriteBtn = document.getElementById('modalFavoriteBtn');
+  const modalFavoriteIcon = document.getElementById('modalFavoriteIcon');
+  // Pending UI toggle only — same as modalMPCheckbox/modalCompletedCheckbox,
+  // not applied to the pet itself until Save changes is clicked (see both
+  // save paths below).
+  let pendingIsFavorite = false;
+  function updateModalFavoriteIcon() {
+    modalFavoriteIcon.setAttribute('fill', pendingIsFavorite ? '#FBBF24' : 'none');
+    modalFavoriteIcon.setAttribute('stroke', pendingIsFavorite ? '#FBBF24' : '#ffffff');
+  }
+  modalFavoriteBtn.addEventListener('click', () => {
+    pendingIsFavorite = !pendingIsFavorite;
+    updateModalFavoriteIcon();
+  });
   const modalRemoveImageBtn = document.getElementById('modalRemoveImageBtn');
   const modalSaveBtn = document.getElementById('modalSaveBtn');
   const modalSaveBtnDefaultLabel = modalSaveBtn.textContent;
@@ -5316,6 +5329,9 @@
       ? [...new Set([pet.imageSrc, ...(Array.isArray(pet.altImageSrcs) ? pet.altImageSrcs : [])].filter(Boolean))]
       : [];
     modalDeleteBtn.classList.toggle('hidden', !pet);
+    modalFavoriteBtn.classList.toggle('hidden', !pet);
+    pendingIsFavorite = pet ? !!pet.isFavorite : false;
+    updateModalFavoriteIcon();
     // Only meaningful (and only shown) when this pet's main image is
     // actually shared with at least one other pet currently passing the
     // active filters — same visible-scope rule pickClusterWinner and
@@ -5456,6 +5472,7 @@
         // one (the field was hidden, so this is just re-affirming null) or
         // gained one just now via the Looks section in this same edit.
         pet.bankCategory = finalImageSrc ? null : (modalCategorySelect.value || null);
+        pet.isFavorite = pendingIsFavorite;
         savedPets = [pet];
       } else {
         // One name is just the ordinary single-add case; more than one
