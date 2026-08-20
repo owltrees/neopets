@@ -1554,7 +1554,7 @@
         <div class="flex flex-col">
           <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Notes</label>
           <textarea id="modalNotesInput" rows="2" placeholder="Add any notes, keywords, or context..."
-            class="deck-scroll w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] resize-none min-h-[52px]"></textarea>
+            class="deck-scroll w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white placeholder:text-[#8AA39A] resize-none min-h-[52px] overscroll-contain"></textarea>
         </div>
 
         <div id="modalCheckboxesWrap" class="space-y-2">
@@ -5295,7 +5295,6 @@
     // entry; a brand-new pet (or bulk add) keeps the compact default.
     modalNotesBaseHeight = pet ? 83 : 52;
     modalNotesInput.style.setProperty('min-height', modalNotesBaseHeight + 'px', 'important');
-    autoGrowModalNotes(); // sizes correctly right away for a pet that already has long notes, rather than waiting for the first keystroke
     modalOwnerInput.value = pet ? (pet.owner || '') : '';
     renderModalTagOptions();
     modalAccountSelect.value = pet ? (pet.account || '') : '';
@@ -5332,6 +5331,17 @@
     toggleModalDeckPickerSection(false);
 
     showModalEl(petModal);
+    // Must run after showModalEl, not before: scrollHeight is unreliable
+    // (usually 0, or just whatever clientHeight already is) on an element
+    // that's still display:none, since the browser hasn't computed layout
+    // for it yet. Running this too early was the actual bug behind notes
+    // seeming to "revert to short" on reopening a pet with long notes —
+    // it wasn't reverting, it just never grew correctly in the first
+    // place, and the same wrong measurement also left overflow-y stuck on
+    // 'hidden' even though the content didn't fit, which is why scrolling
+    // over it fell through to the page behind the modal instead of
+    // scrolling the notes themselves.
+    autoGrowModalNotes();
     resizeModalNameInput();
     updateModalNameCountHint();
     setTimeout(() => { modalNameInput.focus(); resizeModalNameInput(); }, 30);
