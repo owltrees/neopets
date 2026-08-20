@@ -48,7 +48,19 @@
     overflow-y: scroll; /* always show/reserve the scrollbar track, so it can't appear/disappear (and shift content) between Editor and Preview */
     scrollbar-gutter: stable; /* single edge only — reserves space where the real scrollbar lives, without the both-edges bug that left a gap on the opposite side */
   }
-  body { background: #FAFCFC; }
+  :root { --banner-offset: 0px; } /* kept in sync with #statusBannerStack's real height by updateBannerOffset() — 0 when no banner is showing */
+  body {
+    background: #FAFCFC;
+    /* Pushes the whole page down to clear the fixed banner stack above it,
+       rather than letting the header render underneath/behind it. Updates
+       automatically (and animates) whenever a banner appears/disappears
+       or its height changes — e.g. its text wrapping onto a second line
+       on a narrow screen, or a second banner stacking alongside the
+       first — since --banner-offset is re-measured from the real DOM
+       rather than assumed to be a fixed number of pixels. */
+    padding-top: var(--banner-offset);
+    transition: padding-top .2s ease;
+  }
   body::-webkit-scrollbar { width: 6px; }
   body::-webkit-scrollbar-track { background: transparent; }
   body::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.15); border-radius: 9999px; }
@@ -183,7 +195,7 @@
   #viewTabsBar:not(.hidden) {
     display: flow-root;
   }
-  #viewTabsBar.tabs-sticky { position: sticky; top: 0; z-index: 60; }
+  #viewTabsBar.tabs-sticky { position: sticky; top: var(--banner-offset); z-index: 60; }
   #viewTabsBar.tabs-stuck {
     background-color: #FFFFFF;
     border-bottom: 1px solid #E2E8E4;
@@ -193,7 +205,7 @@
        cramped, sitting flush against the browser's own edge. Only applied
        once stuck; at rest the bar already has enough room from the header
        above it. */
-    padding-top: 12px;
+    padding-top: 8px;
   }
 
   .thumb-wrap { position: relative; }
@@ -290,6 +302,15 @@
   #filterBarRow.compact-filters #accountsToggleBtn,
   #filterBarRow.compact-filters #editTagsBtn,
   #filterBarRow.compact-filters #clearFiltersBtn { padding-left: 0.625rem; padding-right: 0.625rem; }
+
+  /* Overrides the plain `top-0` Tailwind utility class on this element
+     (an ID selector beats a single class on specificity regardless of
+     source order) — sticks just below the banner stack instead of at the
+     very top of the viewport, same reasoning as #viewTabsBar.tabs-sticky
+     above. syncDeckTopOffset() (JS) already measures this bar's actual
+     on-screen height each time, so the image deck below automatically
+     stays correctly positioned without needing its own separate fix here. */
+  #filterBar { top: var(--banner-offset); }
 
   /* Image deck sidebar (desktop): sticks below the search/filter bar, with
      the same gap below it that it has at rest (unscrolled) — driven by
@@ -884,6 +905,45 @@
 </head>
 <body class="bg-bgwarm text-forest min-h-screen site-locked">
 
+<!-- Both banners below stack in this wrapper (rather than each being its
+     own position:fixed element) so they can never visually overlap if
+     both happen to be true at once. Given an id specifically so
+     updateBannerOffset() (see the script) can measure its actual current
+     height — 0 when both banners are hidden, one banner's height, or both
+     stacked — and push every other top-anchored fixed/sticky element in
+     the page down to clear it, rather than hardcoding a fixed height that
+     would break the moment banner text wraps onto a second line or a
+     second banner appears alongside the first. -->
+<div id="statusBannerStack" class="fixed top-0 inset-x-0 z-[105] flex flex-col">
+  <!-- Shown on any copy of this file that isn't actually running at the
+       live site's own address (LIVE_SITE_HOST/LIVE_SITE_PATH_PREFIX in the
+       script) — a local download, a test copy, anything. See isLiveOrigin:
+       on a copy like that, entering the edit PIN still unlocks editing so
+       it can be tried out normally, but can never also sync to Supabase,
+       no matter what's entered — only the real site's own address can do
+       that. This is what makes it safe to open any local copy without it
+       being able to silently touch the real data. -->
+  <div id="liveSyncBanner" class="hidden bg-[#5196E1] text-white text-sm font-bold px-4 py-2.5 flex items-center justify-center gap-3 flex-wrap text-center">
+    <span>🔒 Local-only copy — nothing you do here is actually saved.</span>
+    <button id="liveSyncUnlockBtn" type="button" class="underline font-bold hover:text-slate-100 transition shrink-0">Enter PIN to edit</button>
+  </div>
+  <!-- Shown only if bootstrapFromSupabase() never confirms a successful
+       fetch even after its built-in retries (see bootstrapWithRetry at
+       the bottom of the script) — e.g. a flaky connection at page load.
+       Editing still works normally in this state (everything saves
+       locally and queues for Supabase as usual), but this device hasn't
+       actually confirmed it has the latest shared data yet, so any edit
+       made right now risks getting silently overwritten later, or
+       overwriting something newer from another device, once a sync does
+       go through. This used to fail with zero indication to the user at
+       all. -->
+  <div id="syncFailedBanner" class="hidden bg-rose-600 text-white text-sm font-semibold px-4 py-2.5 flex items-center justify-center gap-3 flex-wrap text-center shadow-md">
+    <span>⚠️ Couldn't confirm you have the latest saved data — check your connection before making changes.</span>
+    <button id="syncFailedRetryBtn" type="button" class="underline font-bold hover:text-rose-100 transition shrink-0">Retry now</button>
+  </div>
+</div>
+
+
 <!-- TIER 1: MASTER SITE GATE -->
 <div id="siteGate" class="fixed inset-0 z-[100] bg-bgwarm flex items-center justify-center px-4">
   <div class="w-full max-w-sm bg-white rounded-2xl border border-[#E2E8E4] shadow-2xl p-8 text-center">
@@ -932,7 +992,7 @@
         <button id="settingsMenuBtn" type="button" title="Settings" class="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-full border border-[#D6EEE6] text-[#6E8880] hover:border-teal hover:text-tealdark transition">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
-        <div id="settingsMenu" class="hidden absolute right-0 top-12 z-50 w-56 bg-white border border-[#E2E8E4] rounded-xl shadow-2xl py-1.5">
+        <div id="settingsMenu" class="hidden absolute right-0 top-12 z-[96] w-56 bg-white border border-[#E2E8E4] rounded-xl shadow-2xl py-1.5">
           <button id="menuChangeSitePw" type="button" class="w-full text-left px-4 py-2 text-sm font-semibold text-forest hover:bg-sage transition">Change site password</button>
           <button id="menuChangePin" type="button" class="w-full text-left px-4 py-2 text-sm font-semibold text-forest hover:bg-sage transition">Change edit PIN</button>
           <div class="h-px bg-[#E2E8E4] my-1"></div>
@@ -1473,7 +1533,10 @@
     </div>
 
     <div class="flex items-center justify-between px-6 py-4 border-t border-[#E2E8E4] sticky bottom-0 bg-white rounded-b-2xl">
-      <button id="modalDeleteBtn" class="hidden text-sm font-semibold text-rose-600 hover:text-rose-700">Delete pet</button>
+      <div class="flex items-center gap-4">
+        <button id="modalDeleteBtn" class="hidden text-sm font-semibold text-rose-600 hover:text-rose-700">Delete pet</button>
+        <button id="modalUnpairBtn" class="hidden text-sm font-semibold text-[#6E8880] hover:text-forest" title="Unpair this name from the shared image — it keeps any other Look of its own, or lands in the Name Bank if it has none">Unpair look</button>
+      </div>
       <div class="flex items-center gap-2 ml-auto">
         <button id="modalCancelBtn" class="text-sm font-semibold text-[#6E8880] hover:text-forest px-4 py-2.5 rounded-full hover:bg-sage transition">Cancel</button>
         <button id="modalSaveBtn" class="text-sm font-bold text-white bg-forest hover:bg-forestlight px-5 py-2.5 rounded-full transition">Save changes</button>
@@ -1944,7 +2007,7 @@
   // and without a failed remote write ever undoing the optimistic local
   // save that already happened.
   async function sbSaveSetting(key, value) {
-    if (!supabase) return { error: null };
+    if (!supabase || liveSyncBlocked()) return { error: null };
     try {
       const { error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' });
       if (error) throw error;
@@ -1981,7 +2044,7 @@
   // database calls above — a Storage failure here never touches, and is
   // never caused by, anything happening with the settings/pets data.
   async function sbUploadAsset(file, folder) {
-    if (!supabase || !file) return null;
+    if (!supabase || !file || liveSyncBlocked()) return null;
     try {
       const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop() : ((file.type && file.type.split('/')[1]) || 'bin');
       // unique per-upload filename so simultaneous/rapid uploads never collide
@@ -2022,7 +2085,7 @@
   // available to switch back to; only an explicit delete should free the
   // Storage space.
   async function sbDeleteAsset(path) {
-    if (!supabase || !path) return { error: null };
+    if (!supabase || !path || liveSyncBlocked()) return { error: null };
     try {
       const { error } = await supabase.storage.from('pet-assets').remove([path]);
       if (error) throw error;
@@ -2143,7 +2206,14 @@
     safeLocalStorageSet(STORAGE_STATUSES, JSON.stringify(STATUSES));
     sbSaveSetting('statuses', STATUSES);
   }
-  let pets = migratePets(loadJSON(STORAGE_PETS, loadLegacyPets()));
+  let pets = loadJSON(STORAGE_PETS, loadLegacyPets());
+  // Tracked so the "persist any migration" step at the very bottom of this
+  // script only actually pushes to Supabase when migratePets() genuinely
+  // changed something — see that step's own comment for why an
+  // unconditional push here turned out to be a serious problem.
+  const petsBeforeMigration = JSON.stringify(pets);
+  pets = migratePets(pets);
+  const petsMigratedAtLoad = JSON.stringify(pets) !== petsBeforeMigration;
   let stagedImages = loadJSON(STORAGE_IMAGES, []);
   // Deleted-deck-image tombstones — same reasoning as deletedPetIds below,
   // just for the Image Deck instead of the pets list.
@@ -2195,6 +2265,30 @@
   // (e.g. clicked "Save changes" right after the page loaded); without this,
   // that late-resolving fetch would silently overwrite `pets` with the
   // stale remote list and the new pet would vanish right after appearing.
+  // Current real height (in px) of #statusBannerStack (the fixed local-only
+  // / sync-failed banner wrapper) — 0 when neither is showing. Read by
+  // syncDeckTopOffset() below, and mirrored onto the --banner-offset CSS
+  // variable by updateBannerOffset() so every other top-anchored
+  // fixed/sticky element (the sticky tab bar, the sticky filter bar, the
+  // body's own top padding) shifts down to clear the banner(s) instead of
+  // rendering underneath them. Declared this early since updateBannerOffset()
+  // can be called well before the rest of this file's state is set up
+  // (e.g. from updateLiveSyncBanner(), which fires during init).
+  let currentBannerOffsetPx = 0;
+  function updateBannerOffset() {
+    const stack = document.getElementById('statusBannerStack');
+    const next = stack ? stack.offsetHeight : 0;
+    if (next === currentBannerOffsetPx) return;
+    currentBannerOffsetPx = next;
+    document.documentElement.style.setProperty('--banner-offset', next + 'px');
+    // Only defined much further down this file, but function declarations
+    // are hoisted through this whole scope, and by the time this can
+    // actually be CALLED (a banner toggling, or a resize), syncDeckAside
+    // has long since been assigned — safe despite the source-order gap.
+    if (typeof syncDeckAside === 'function') syncDeckAside();
+  }
+  window.addEventListener('resize', updateBannerOffset);
+
   let dirtyPetIds = new Set();
   // Same idea as dirtyPetIds, for a deck image whose src just got upgraded
   // from a local base64 fallback to a real Storage URL (see the three spots
@@ -2202,6 +2296,17 @@
   // being reverted if bootstrapFromSupabase()'s fetch resolves in the same
   // narrow window, the same way dirtyPetIds protects a fresh pet edit.
   let dirtyImageIds = new Set();
+  // Same idea again, for the ACCOUNTS/STATUSES tag lists themselves (adding,
+  // renaming, or deleting a tag *definition* — not tagging an individual
+  // pet, which is already covered by dirtyPetIds above since that lives on
+  // the pet record). Without this, the accounts/statuses merge below had no
+  // way to tell "this device's copy is newer because the user just added a
+  // tag" apart from "this device's copy is just stale" — so a
+  // late-resolving bootstrap fetch (e.g. after a retry on a flaky
+  // connection) would unconditionally overwrite ACCOUNTS/STATUSES with
+  // whatever it fetched, silently erasing a tag added moments earlier in
+  // the same session with no recovery possible.
+  let tagsDirtyThisSession = false;
   // Deleted-pet tombstones — see DELETED_PETS_SETTINGS_KEY's comment.
   // Persisted (unlike dirtyPetIds, which is deliberately session-only)
   // because the whole point is surviving a reload / a different device.
@@ -2221,6 +2326,24 @@
   let siteUnlocked = false;
   try { siteUnlocked = localStorage.getItem(STORAGE_SITE_UNLOCKED) === '1'; } catch (e) {}
   if (siteUnlocked) document.body.classList.remove('site-locked'); // done synchronously, before first paint, so no flash of the gate for returning visitors
+  // Tier 3 (live sync access) — reuses Tier 2's own isUnlocked gates at each
+  // individual write site (pickClusterWinner, handleDeleteTag, etc. already
+  // check isUnlocked themselves) rather than duplicating that check here.
+  // What decides whether writes are allowed AT ALL is simply WHERE this
+  // copy is running: only the real deployed site's own address can ever
+  // push to Supabase — a downloaded/local copy is structurally incapable
+  // of it, since it can never have that exact address, no matter what PIN
+  // gets entered there. Deliberately a plain equality check, not a fuzzy
+  // "looks similar" one: a typo here would either lock the real site out
+  // of syncing (loud, easy to notice) or — far worse — quietly let some
+  // other address sync to production, so being strict beats being clever.
+  const LIVE_SITE_HOST = 'owltrees.github.io';
+  const LIVE_SITE_PATH_PREFIX = '/neopets/';
+  const isLiveOrigin = (() => {
+    try { return location.hostname === LIVE_SITE_HOST && location.pathname.indexOf(LIVE_SITE_PATH_PREFIX) === 0; }
+    catch (e) { return false; }
+  })();
+  function liveSyncBlocked() { return !isLiveOrigin; }
 
   const DEFAULT_PREVIEW_ACCOUNT = ''; // no pre-seeded accounts anymore; getDefaultPreviewAccount() already falls back to 'all'
   function getDefaultPreviewAccount() {
@@ -2848,7 +2971,7 @@
   const DECK_GAP = 24;
   function syncDeckTopOffset() {
     if (!filterBar || !imageDeckAside) return;
-    imageDeckAside.style.setProperty('--deck-top-offset', (filterBar.getBoundingClientRect().height + DECK_GAP) + 'px');
+    imageDeckAside.style.setProperty('--deck-top-offset', (currentBannerOffsetPx + filterBar.getBoundingClientRect().height + DECK_GAP) + 'px');
   }
 
   // The offset above is only right for the stuck state, though — at the
@@ -4311,6 +4434,7 @@
   const modalStage = document.getElementById('modalStage');
   const modalDeckPicker = document.getElementById('modalDeckPicker');
   const modalDeleteBtn = document.getElementById('modalDeleteBtn');
+  const modalUnpairBtn = document.getElementById('modalUnpairBtn');
   const modalRemoveImageBtn = document.getElementById('modalRemoveImageBtn');
   const modalSaveBtn = document.getElementById('modalSaveBtn');
   const modalSaveBtnDefaultLabel = modalSaveBtn.textContent;
@@ -4657,6 +4781,15 @@
       ? [...new Set([pet.imageSrc, ...(Array.isArray(pet.altImageSrcs) ? pet.altImageSrcs : [])].filter(Boolean))]
       : [];
     modalDeleteBtn.classList.toggle('hidden', !pet);
+    // Only meaningful (and only shown) when this pet's main image is
+    // actually shared with at least one other pet currently passing the
+    // active filters — same visible-scope rule pickClusterWinner and
+    // dismissClusterCandidate already use, so this button only appears for
+    // a name that's genuinely stacked with others on one look, not every
+    // pet with a picture.
+    const sharesLookWithOthers = !!(pet && pet.imageSrc &&
+      sortPets(pets.filter(matchesFilters)).some(p => p.id !== pet.id && p.imageSrc === pet.imageSrc));
+    modalUnpairBtn.classList.toggle('hidden', !sharesLookWithOthers);
 
     updateModalStage();
     renderModalLooksRow();
@@ -4837,6 +4970,9 @@
 
   modalDeleteBtn.addEventListener('click', () => {
     if (editingId) { deletePet(editingId); closeModal(); }
+  });
+  modalUnpairBtn.addEventListener('click', () => {
+    if (editingId) { dismissClusterCandidate(editingId); closeModal(); }
   });
 
   async function deletePet(id) {
@@ -5076,6 +5212,7 @@
       if (category === 'status' && p.status === tag) { p.status = null; petsChanged = true; }
     });
     if (petsChanged) savePets();
+    tagsDirtyThisSession = true;
     saveTags();
 
     // force a full re-render of every dependent UI surface, immediately, no refresh needed
@@ -5221,6 +5358,7 @@
     if (commit) {
       ACCOUNTS = [...draftAccounts];
       STATUSES = [...draftStatuses];
+      tagsDirtyThisSession = true;
       saveTags();
       renderFilterPills();
       renderModalTagOptions();
@@ -7435,12 +7573,14 @@
         );
         if (!ok) return;
         pets = migratePets(data.pets);
+        pets.forEach(p => dirtyPetIds.add(p.id)); // a restore is a deliberate local change — protect it the same way a live edit already is, see dirtyPetIds' own comment
         stagedImages = data.stagedImages;
         // older backups predate the wishlist — falling back to an empty
         // list rather than rejecting the whole file as invalid
         wishlistImages = Array.isArray(data.wishlistImages) ? data.wishlistImages : [];
         if (Array.isArray(data.accounts) && data.accounts.length) ACCOUNTS = data.accounts;
         if (Array.isArray(data.statuses) && data.statuses.length) STATUSES = data.statuses;
+        tagsDirtyThisSession = true;
         savePets(); saveImages(); saveWishlistImages(); saveTags();
         filters = { search: '', accounts: new Set(), statuses: new Set(), imageSrc: null, mp: false, showCompleted: false };
         searchInput.value = '';
@@ -7509,9 +7649,12 @@
     document.body.classList.toggle('admin-locked', !isUnlocked);
     adminLockIconLocked.classList.toggle('hidden', isUnlocked);
     adminLockIconUnlocked.classList.toggle('hidden', !isUnlocked);
-    adminLockBtn.title = isUnlocked ? 'Unlocked — click to lock editing' : 'Locked — click to unlock editing';
+    adminLockBtn.title = isUnlocked
+      ? (isLiveOrigin ? 'Unlocked — syncing live. Click to lock' : 'Unlocked — local only. Click to lock')
+      : 'Locked — click to unlock editing';
     if (addPetBtn) addPetBtn.classList.toggle('hidden', !isUnlocked);
     if (editTagsBtn) editTagsBtn.classList.toggle('hidden', !isUnlocked);
+    updateLiveSyncBanner();
     safeCall(renderDeck); // hint text + thumbnail draggability both depend on lock state
     if (currentView === 'preview') renderPreview();
     if (currentView === 'detail') {
@@ -7522,7 +7665,11 @@
     }
   }
   async function promptCreatePin() {
-    const val = await appPrompt('Create a 4-digit PIN to protect editing on this showcase.', { title: 'Set up admin PIN', okText: 'Save PIN', placeholder: '••••' });
+    const val = await appPrompt('Create a 4-digit PIN to protect editing on this showcase.', {
+      title: isLiveOrigin ? 'Set up PIN — will sync live' : 'Set up PIN — stays local',
+      okText: 'Save PIN',
+      placeholder: '••••'
+    });
     if (val === null) return;
     if (!/^\d{4}$/.test(val.trim())) { await appAlert('Please enter exactly 4 digits.', 'Invalid PIN'); return; }
     const hash = await sha256Hex(val.trim());
@@ -7536,7 +7683,7 @@
   async function promptEnterPin() {
     if (!adminPinHash) { await promptCreatePin(); return; }
     const val = await appPrompt('Your 4-digit PIN', {
-      title: 'Enter your PIN to make edits',
+      title: isLiveOrigin ? 'Unlock to edit — syncs live' : 'Unlock to edit — stays local',
       okText: 'Continue',
       placeholder: '••••',
       validate: async (raw) => {
@@ -7556,6 +7703,25 @@
     settingsMenu.classList.add('hidden');
     await promptCreatePin();
   });
+
+  // ---------- Tier 3: live sync banner ----------
+  // Purely a readout of isLiveOrigin (see its own comment above) — nothing
+  // to configure, no separate credential. Only visible on a non-live copy,
+  // so a visitor to the real site never sees it at all.
+  const liveSyncBanner = document.getElementById('liveSyncBanner');
+  const liveSyncUnlockBtn = document.getElementById('liveSyncUnlockBtn');
+  function updateLiveSyncBanner() {
+    if (!liveSyncBanner) return;
+    liveSyncBanner.classList.toggle('hidden', isLiveOrigin);
+    // The "Enter PIN to edit" link is only useful before unlocking — once
+    // isUnlocked is already true there's nothing left for it to do, but
+    // the banner itself stays up as a standing reminder that this copy
+    // still can't sync, precisely because that fact doesn't change just
+    // because editing is now unlocked.
+    if (liveSyncUnlockBtn) liveSyncUnlockBtn.classList.toggle('hidden', isUnlocked);
+    updateBannerOffset();
+  }
+  if (liveSyncUnlockBtn) liveSyncUnlockBtn.addEventListener('click', promptEnterPin);
 
   // ---------- Tier 1: master site gate (view access) ----------
   const siteGateEl = document.getElementById('siteGate');
@@ -7863,21 +8029,35 @@
     }
 
     if (remoteSettings) {
-      if (Array.isArray(remoteSettings.accounts) && remoteSettings.accounts.length) {
+      // tagsDirtyThisSession: if the user added/renamed/deleted a tag (or
+      // restored a backup) in this same session, this device's copy is the
+      // newer one — push it instead of letting a same-session, delayed
+      // bootstrap fetch (e.g. a retry after a flaky connection at page
+      // load) silently overwrite it with whatever was in Supabase before
+      // that edit landed. This mirrors dirtyPetIds' own protection for
+      // individual pets; ACCOUNTS/STATUSES never had an equivalent, which
+      // is exactly how a newly-added tag could vanish moments after being
+      // typed with no way to recover it.
+      if (tagsDirtyThisSession) {
+        sbSaveSetting('accounts', ACCOUNTS);
+        sbSaveSetting('statuses', STATUSES);
+      } else if (Array.isArray(remoteSettings.accounts) && remoteSettings.accounts.length) {
         ACCOUNTS = remoteSettings.accounts;
         changed = true;
       } else if (ACCOUNTS.length) {
         sbSaveSetting('accounts', ACCOUNTS);
       }
-      if (Array.isArray(remoteSettings.statuses) && remoteSettings.statuses.length) {
-        STATUSES = remoteSettings.statuses;
-        // The remote copy can itself predate 'For sale' (e.g. synced from
-        // another device before this migration existed) — re-run the same
-        // check so it doesn't get lost the moment the remote list wins.
-        if (ensureNewStatusesPresent()) sbSaveSetting('statuses', STATUSES);
-        changed = true;
-      } else if (STATUSES.length) {
-        sbSaveSetting('statuses', STATUSES);
+      if (!tagsDirtyThisSession) {
+        if (Array.isArray(remoteSettings.statuses) && remoteSettings.statuses.length) {
+          STATUSES = remoteSettings.statuses;
+          // The remote copy can itself predate 'For sale' (e.g. synced from
+          // another device before this migration existed) — re-run the same
+          // check so it doesn't get lost the moment the remote list wins.
+          if (ensureNewStatusesPresent()) sbSaveSetting('statuses', STATUSES);
+          changed = true;
+        } else if (STATUSES.length) {
+          sbSaveSetting('statuses', STATUSES);
+        }
       }
       if (Array.isArray(remoteSettings.hidden_accounts)) {
         HIDDEN_ACCOUNTS = new Set(remoteSettings.hidden_accounts);
@@ -8046,8 +8226,23 @@
   }
 
   // ---------- init ----------
-  savePets(); // persist any migration immediately
-  saveTags();
+  // Only push to Supabase here if a migration genuinely changed something
+  // locally (a malformed/legacy record that needed fixing) — never
+  // unconditionally. This used to run savePets()/saveTags() on every single
+  // page load no matter what, which queued and pushed THIS tab's own local
+  // `pets`/accounts/statuses to Supabase the moment its own bootstrap
+  // finished — even with zero user interaction. Every copy of this file
+  // (a live GitHub Pages tab, an old local test copy, a phone that had it
+  // open from days ago) shares the exact same hardcoded Supabase
+  // credentials, so merely having a stale copy open anywhere was enough on
+  // its own to silently overwrite a live editing session happening
+  // elsewhere — no error, no warning, just gone the moment that other
+  // tab's own sync fired. bootstrapFromSupabase()'s own careful merge
+  // (dirtyPetIds, tagsDirtyThisSession, tombstones) is the correct place
+  // for reconciling with the cloud; this step should only ever fire for a
+  // genuine local migration, nothing else.
+  if (petsMigratedAtLoad) safeLocalStorageSet(STORAGE_PETS, JSON.stringify(pets)); // sbSyncPetsDebounced() below covers the Supabase push once bootstrapDone flips true
+  if (petsMigratedAtLoad) sbSyncPetsDebounced();
   previewAccount = getDefaultPreviewAccount();
   renderFilterPills();
   renderModalTagOptions();
@@ -8071,12 +8266,44 @@
   // yet — a short, bounded retry here closes that gap quickly for a
   // transient blip instead of leaving it open for the rest of the session,
   // without retrying forever if this device is genuinely offline.
+  const syncFailedBanner = document.getElementById('syncFailedBanner');
+  const syncFailedRetryBtn = document.getElementById('syncFailedRetryBtn');
   (async function bootstrapWithRetry(attemptsLeft = 3) {
     const ok = await bootstrapFromSupabase();
-    if (!ok && attemptsLeft > 1) {
+    if (ok) {
+      if (syncFailedBanner) syncFailedBanner.classList.add('hidden');
+      updateBannerOffset();
+      return;
+    }
+    if (attemptsLeft > 1) {
       setTimeout(() => bootstrapWithRetry(attemptsLeft - 1), 4000);
+    } else if (syncFailedBanner) {
+      // All 3 attempts failed — this session has been running on whatever
+      // was already in this device's local cache the whole time, never
+      // actually confirmed against Supabase. Surfacing that here beats the
+      // alternative of it staying invisible right up until an edit made
+      // during this window gets silently overwritten later.
+      syncFailedBanner.classList.remove('hidden');
+      updateBannerOffset();
     }
   })();
+  if (syncFailedRetryBtn) {
+    syncFailedRetryBtn.addEventListener('click', () => {
+      syncFailedRetryBtn.disabled = true;
+      syncFailedRetryBtn.textContent = 'Retrying…';
+      bootstrapFromSupabase().then((ok) => {
+        syncFailedRetryBtn.disabled = false;
+        syncFailedRetryBtn.textContent = 'Retry now';
+        if (ok && syncFailedBanner) syncFailedBanner.classList.add('hidden');
+        updateBannerOffset();
+      });
+    });
+  }
+  // Covers the very first paint too — updateLiveSyncBanner() (called from
+  // applyLockUI() above, and from the merged PIN/live-sync flow) already
+  // calls this on its own from here on, but nothing has called it yet for
+  // whatever the local-only banner's initial state is at this exact point.
+  updateBannerOffset();
 })();
 </script>
 </body>
