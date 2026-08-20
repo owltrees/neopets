@@ -4549,6 +4549,38 @@
     const drop = e.target.closest('.image-assign-target');
     if (drop) drop.classList.remove('drop-target-active');
   });
+
+  // Shared by both places a Name Bank card can be dropped onto an existing
+  // picture: a single pet card (targetImageSrc resolved from that pet's own
+  // imageSrc) and a multi-name cluster stack (targetImageSrc already known
+  // directly from data-cluster-edit, no specific pet to resolve through —
+  // see the cluster drop handler further below). Same outcome either way:
+  // the dragged name joins that image's stack.
+  async function pairNameBankCardWithImage(sourcePetId, targetImageSrc) {
+    const sourcePet = pets.find(p => p.id === sourcePetId);
+    if (!sourcePet || !targetImageSrc || sourcePet.imageSrc === targetImageSrc) return;
+
+    // Same guard rails as every other "assign this image" entry point —
+    // see their own definitions for what each catches.
+    if (!(await confirmImageMergeIfNeeded(petExistingImages(sourcePet), targetImageSrc, sourcePet.id))) return;
+    if (!(await confirmUnbindIfNeeded(sourcePet, targetImageSrc))) return;
+
+    assignPetMainImage(sourcePet, targetImageSrc);
+    // A Name Bank category no longer means anything once this pet has an
+    // actual picture — same as every other path off of the Name Bank
+    // (Archive, dropping a deck image on it below) leaving no stale
+    // category behind.
+    sourcePet.bankCategory = null;
+    dirtyPetIds.add(sourcePet.id);
+    savePets();
+    renderGrid();
+    showToast(`"${sourcePet.name}" added to name stack`);
+    sbSavePetsToSettings(pets).then(({ error }) => {
+      if (error) console.error('Supabase pet save error (name bank drag onto card):', error);
+      else dirtyPetIds.delete(sourcePet.id);
+    });
+  }
+
   petsMain.addEventListener('drop', async (e) => {
     const drop = e.target.closest('.image-assign-target');
     if (!drop) return;
@@ -4564,29 +4596,10 @@
     // the deck-image handling below rather than folding into it, since the
     // source id here is a PET being dragged, not a staged image.
     if (rawTransfer.startsWith('bankpet:')) {
-      const sourcePet = pets.find(p => p.id === rawTransfer.slice('bankpet:'.length));
       const targetPet = pets.find(p => p.id === drop.dataset.petId);
-      if (!sourcePet || !targetPet || sourcePet.id === targetPet.id || !targetPet.imageSrc) return;
-
-      // Same guard rails as every other "assign this image" entry point —
-      // see their own comments a few lines below for what each catches.
-      if (!(await confirmImageMergeIfNeeded(petExistingImages(sourcePet), targetPet.imageSrc, sourcePet.id))) return;
-      if (!(await confirmUnbindIfNeeded(sourcePet, targetPet.imageSrc))) return;
-
-      assignPetMainImage(sourcePet, targetPet.imageSrc);
-      // A Name Bank category no longer means anything once this pet has an
-      // actual picture — same as every other path off of the Name Bank
-      // (Archive, dropping a deck image on it below) leaving no stale
-      // category behind.
-      sourcePet.bankCategory = null;
-      dirtyPetIds.add(sourcePet.id);
-      savePets();
-      renderGrid();
-      showToast(`"${sourcePet.name}" added to name stack`);
-      sbSavePetsToSettings(pets).then(({ error }) => {
-        if (error) console.error('Supabase pet save error (name bank drag onto card):', error);
-        else dirtyPetIds.delete(sourcePet.id);
-      });
+      if (targetPet && targetPet.imageSrc) {
+        await pairNameBankCardWithImage(rawTransfer.slice('bankpet:'.length), targetPet.imageSrc);
+      }
       return;
     }
 
@@ -4651,6 +4664,42 @@
       if (error) console.error('Supabase pet save error (image drag-and-drop):', error);
       else dirtyPetIds.delete(pet.id);
     });
+  });
+
+  // ---------- Name Bank card dropped onto a multi-name cluster stack ----------
+  // A cluster card doesn't carry .image-assign-target/data-pet-id at all
+  // (it represents a GROUP of pets sharing one image, not a single one —
+  // see renderClusterCardHtml) — [data-cluster-edit] is the only marker on
+  // its image area, already carrying the shared src directly, which is
+  // actually simpler here than the single-card case above: no pet lookup
+  // needed to find the target image, just the src already on the element.
+  // Only relevant to a bankpet drag; a deck-image drag isn't handled here,
+  // same as it never has been for clusters (that's still done through the
+  // bulk editor this same element opens on a plain click).
+  petsMain.addEventListener('dragenter', (e) => {
+    const drop = e.target.closest('[data-cluster-edit]');
+    if (drop) e.preventDefault();
+  });
+  petsMain.addEventListener('dragover', (e) => {
+    const drop = e.target.closest('[data-cluster-edit]');
+    if (drop) {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      drop.classList.add('drop-target-active');
+    }
+  });
+  petsMain.addEventListener('dragleave', (e) => {
+    const drop = e.target.closest('[data-cluster-edit]');
+    if (drop) drop.classList.remove('drop-target-active');
+  });
+  petsMain.addEventListener('drop', async (e) => {
+    const drop = e.target.closest('[data-cluster-edit]');
+    if (!drop) return;
+    const rawTransfer = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || '';
+    if (!rawTransfer.startsWith('bankpet:')) return; // not a Name Bank card — leave it alone (e.g. a deck-image drag, unhandled here same as before)
+    e.preventDefault();
+    drop.classList.remove('drop-target-active');
+    await pairNameBankCardWithImage(rawTransfer.slice('bankpet:'.length), drop.dataset.clusterEdit);
   });
 
   // ---------- card "..." menu ----------
