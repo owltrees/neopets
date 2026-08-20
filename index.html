@@ -137,6 +137,15 @@
     background: #ffffff; border-radius: 18px; border: 1px solid #E2E8E4;
     box-shadow: 0 20px 44px rgba(1,31,20,0.24), 0 4px 16px rgba(1,31,20,0.14);
     max-height: min(75vh, 580px); display: flex; flex-direction: column; overflow: hidden;
+    /* #searchNeopetModal (the parent) already sets a fixed width — this
+       forces the card to exactly match it rather than shrink-to-fit
+       whatever fields happen to be visible inside it, which is what let
+       the whole popover visibly narrow/widen depending on Status (the
+       Account field toggling in and out changed how much content the
+       card "wanted" to be, and width:auto followed that instead of
+       staying pinned to the parent). */
+    width: 100%;
+    box-sizing: border-box;
   }
   .search-panel-body { overflow-y: auto; }
 
@@ -1228,6 +1237,14 @@
       </button>
       <div id="nameBankBody" class="hidden mt-3">
         <p class="text-xs text-[#6E8880] mb-3">Names you're holding onto without a picture yet.</p>
+        <!-- View filter + category management. Drag a card from the grid
+             below onto one of these pills (other than "All"/Archive) to
+             assign it — see the drag handlers near renderNameBankRow.
+             Fully re-rendered (innerHTML) on every change, including the
+             "+ New category" input itself once opened — see
+             renderNameBankCategoryPillsRow's own comments for how it
+             avoids losing whatever's typed there across that. -->
+        <div id="nameBankCategoryPills" class="flex items-center flex-wrap gap-1.5 mb-3"></div>
         <div id="nameBankEmpty" class="hidden text-center py-8 text-sm text-[#8AA39A] border border-dashed border-[#E2E8E4] rounded-xl">
           Dismissed or nameless candidates you want to keep track of will show up here.
         </div>
@@ -1418,6 +1435,10 @@
   <button id="menuDuplicateBtn" class="w-full text-left px-3.5 py-2 text-sm font-semibold text-forest hover:bg-sage transition flex items-center gap-2">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="1"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
     Duplicate
+  </button>
+  <button id="menuArchiveBtn" class="w-full text-left px-3.5 py-2 text-sm font-semibold text-forest hover:bg-sage transition flex items-center gap-2">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>
+    Archive
   </button>
   <button id="menuDeleteBtn" class="w-full text-left px-3.5 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50 transition flex items-center gap-2">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
@@ -1616,7 +1637,7 @@
         </button>
         <div id="searchNeopetBankFields" class="hidden mt-3 space-y-3">
           <div class="grid grid-cols-2 gap-3">
-            <div>
+            <div id="searchNeopetStatusFieldWrap">
               <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Status</label>
               <div class="relative">
                 <select id="searchNeopetStatusSelect" class="appearance-none w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white text-forest">
@@ -1625,7 +1646,16 @@
                 <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#6E8880]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
               </div>
             </div>
-            <div>
+            <!-- Only meaningful for a pet you actually own — same rule as
+                 the main Edit/Add pet modal (see NO_OWNER_ACCOUNT_STATUSES
+                 and updateModalStatusDependentFields), applied here by
+                 updateSearchNeopetStatusDependentFields. Hidden for a
+                 blank status, "Untaken", or anything else that isn't
+                 "Own" — the Neopets owner field above already covers
+                 those cases, so Account stepping out of the way (and
+                 Status expanding to fill the row) avoids showing a field
+                 that wouldn't apply. -->
+            <div id="searchNeopetAccountFieldWrap">
               <label class="text-xs font-bold uppercase tracking-wide text-[#6E8880] mb-1.5 block">Account</label>
               <div class="relative">
                 <select id="searchNeopetAccountSelect" class="appearance-none w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-[#E2E8E4] text-sm bg-white text-forest">
@@ -2175,23 +2205,43 @@
   const STORAGE_ACCOUNTS = 'neo_tracker_accounts_v1';
   const STORAGE_HIDDEN_ACCOUNTS = 'neo_tracker_hidden_accounts_v1'; // accounts hidden from the Preview "Pets on [Account]" dropdown
   const STORAGE_STATUSES = 'neo_tracker_statuses_v1';
+  const STORAGE_NAME_BANK_CATEGORIES = 'neo_name_bank_categories_v1';
   const STORAGE_APP_THEME = 'neo_app_theme_v1'; // 'slate' | 'classic' — app-wide, separate from each pet's own Lookup theme
   const STORAGE_SITE_UNLOCKED = 'neo_site_unlocked_v1'; // Tier 1: master site gate
   const STORAGE_SITE_PW_HASH = 'neo_site_pw_hash_v1'; // offline mirror of the Supabase-stored hash
   const STORAGE_EDIT_UNLOCKED = 'neo_edit_unlocked_v1'; // Tier 2: PIN-gated editing
 
   const statusStyles = {
-    'Untaken': 'bg-slate-100 text-slate-600 border border-slate-200',
+    'Untaken': 'bg-yellow-50 text-yellow-700 border border-yellow-300',
     'Own': 'bg-emerald-50 text-emerald-700 border border-emerald-200',
     'Inactive': 'bg-stone-100 text-stone-500 border border-stone-200',
     'For trade': 'bg-sky-50 text-sky-700 border border-sky-200',
-    'For sale': 'bg-amber-50 text-amber-700 border border-amber-200'
+    'For sale': 'bg-rose-50 text-rose-700 border border-rose-200',
+    'UFT': 'bg-violet-50 text-violet-700 border border-violet-200',
+    'Active/Frozen': 'bg-slate-100 text-slate-600 border border-slate-200'
   };
+  // Account tags (which account a pet belongs to) use one fixed color
+  // regardless of which specific account it is — unlike statuses above,
+  // there's no per-account styling, just this one shared look.
+  const ACCOUNT_TAG_CLASS = 'bg-sky-50 text-sky-700 border border-sky-200';
 
   // ---------- state ----------
   let ACCOUNTS = loadJSON(STORAGE_ACCOUNTS, [...DEFAULT_ACCOUNTS]);
   let HIDDEN_ACCOUNTS = new Set(loadJSON(STORAGE_HIDDEN_ACCOUNTS, []));
   let STATUSES = loadJSON(STORAGE_STATUSES, [...DEFAULT_STATUSES]);
+  // Name Bank categories — freeform folders (e.g. "Asian demon", "Archived")
+  // a Name Bank entry can optionally belong to, via pet.bankCategory (see
+  // migratePets/the drag-drop handlers below). Same simple flat-list shape
+  // and sync treatment as ACCOUNTS/STATUSES — see saveNameBankCategories().
+  let NAME_BANK_CATEGORIES = loadJSON(STORAGE_NAME_BANK_CATEGORIES, []);
+  // Built-in, always-present category — deliberately NOT stored in
+  // NAME_BANK_CATEGORIES (so it can never be deleted or duplicated the
+  // way a user-created category can) and not synced as its own setting,
+  // since there's nothing to sync: every device already knows this
+  // constant. Only pet.bankCategory === ARCHIVE_CATEGORY assignments
+  // (ordinary pet data, already covered by the normal pets sync) need to
+  // reach Supabase.
+  const ARCHIVE_CATEGORY = 'Archive';
   // Only relevant for an install that already had a persisted STATUSES list
   // before 'For sale' existed — a brand-new one already gets it via
   // DEFAULT_STATUSES above.
@@ -2394,6 +2444,17 @@
     safeLocalStorageSet(STORAGE_STATUSES, JSON.stringify(STATUSES));
     sbSaveSetting('accounts', ACCOUNTS);
     sbSaveSetting('statuses', STATUSES);
+  }
+  // Same shape and same same-session-edit protection as saveTags() above
+  // (see tagsDirtyThisSession's own comment) — reused here rather than a
+  // separate flag, since a category add/delete is the exact same class of
+  // risk as a tag add/delete: a small admin-configured list that a
+  // same-session, delayed bootstrap fetch could otherwise silently
+  // overwrite moments after it's edited.
+  function saveNameBankCategories() {
+    safeLocalStorageSet(STORAGE_NAME_BANK_CATEGORIES, JSON.stringify(NAME_BANK_CATEGORIES));
+    tagsDirtyThisSession = true;
+    sbSaveSetting('name_bank_categories', NAME_BANK_CATEGORIES);
   }
   function saveHiddenAccounts() {
     const arr = [...HIDDEN_ACCOUNTS];
@@ -3503,7 +3564,7 @@
           </div>
           <div class="flex flex-wrap gap-1 mt-1.5">
             ${pet.status ? `<span class="text-[9px] font-bold px-1 py-0.5 rounded-full leading-none ${statusStyles[pet.status] || 'bg-slate-100 text-slate-600 border border-slate-200'}">${escapeHtml(pet.status)}</span>` : ''}
-            ${pet.account ? `<span class="text-[9px] font-bold px-1 py-0.5 rounded-full bg-sage text-tealdark border border-sagedeep leading-none">${escapeHtml(pet.account)}</span>` : ''}
+            ${pet.account ? `<span class="text-[9px] font-bold px-1 py-0.5 rounded-full ${ACCOUNT_TAG_CLASS} leading-none">${escapeHtml(pet.account)}</span>` : ''}
             ${(!pet.account && !pet.status) ? `<span class="text-[9px] text-[#8AA39A]">No tags</span>` : ''}
           </div>
           ${pet.notes ? `<p class="text-xs text-[#6E8880] mt-1.5 line-clamp-2">${escapeHtml(pet.notes)}</p>` : ''}
@@ -3677,7 +3738,197 @@
   const nameBankCount = document.getElementById('nameBankCount');
   const nameBankEmpty = document.getElementById('nameBankEmpty');
   const nameBankList = document.getElementById('nameBankList');
+  const nameBankCategoryPills = document.getElementById('nameBankCategoryPills');
   let nameBankExpanded = true; // open by default when landing on the editor; toggled per-click after that, but not persisted across reloads
+  // Which Name Bank view is currently showing: null (the default — hides
+  // anything filed under the built-in Archive category), 'all', or a
+  // specific category name. Session-only, like
+  // nameBankExpanded above — resets to the default on every fresh load
+  // rather than being remembered, so an old session's narrow view doesn't
+  // quietly hide names on the next visit.
+  // null = the default view: nothing shown as selected, behaves as
+  // "everything except Archive" without needing its own dedicated pill
+  // for that — clicking any pill (including "All", to see Archive too)
+  // selects it, and clicking that same pill again toggles back to this
+  // default rather than needing a separate way back to it.
+  let nameBankViewFilter = null;
+  // Whether the pills row is in "manage categories" mode — while true,
+  // each custom category pill shows its own × and "+ New category"/Done
+  // replace the plain "Edit" trigger. Session-only, same reasoning as
+  // nameBankExpanded/nameBankViewFilter above.
+  let nameBankCategoriesEditing = false;
+  // Whether the "+ New category" button is currently showing its inline
+  // input instead — see the pills-array construction in
+  // renderNameBankCategoryPillsRow for how this swaps the button for the
+  // input in the exact same slot rather than adding it elsewhere.
+  let nameBankAddingCategory = false;
+  function petMatchesNameBankView(pet) {
+    if (nameBankViewFilter === null) return pet.bankCategory !== ARCHIVE_CATEGORY;
+    if (nameBankViewFilter === 'all') return true;
+    return pet.bankCategory === nameBankViewFilter;
+  }
+  function setNameBankViewFilter(view) {
+    nameBankViewFilter = (nameBankViewFilter === view) ? null : view;
+    renderGrid();
+  }
+
+  // No confirmation dialog and no undo — same as deleting an account/status
+  // tag elsewhere in this app (handleDeleteTag). Any name currently in this
+  // category goes back to unassigned rather than being deleted itself.
+  // Archive itself is never deletable this way — it isn't part of
+  // NAME_BANK_CATEGORIES at all, see ARCHIVE_CATEGORY's own comment.
+  function deleteNameBankCategory(name) {
+    const idx = NAME_BANK_CATEGORIES.indexOf(name);
+    if (idx === -1) return;
+    NAME_BANK_CATEGORIES.splice(idx, 1);
+    saveNameBankCategories();
+    let petsChanged = false;
+    pets.forEach(p => {
+      if (p.bankCategory === name) { p.bankCategory = null; dirtyPetIds.add(p.id); petsChanged = true; }
+    });
+    if (petsChanged) {
+      savePets();
+      sbSavePetsToSettings(pets).then(({ error }) => {
+        if (error) console.error('Supabase pet save error (delete category):', error);
+      });
+    }
+    if (nameBankViewFilter === name) nameBankViewFilter = null;
+    renderGrid();
+    showSaveToast();
+  }
+  // category === null un-assigns. Shared by the drag-drop handlers below,
+  // the per-card badge's own × (see renderNameBankRow), and the "Archive"
+  // card-menu action (see menuArchiveBtn) — one place that keeps the local
+  // save, dirty-tracking, and Supabase push consistent everywhere a pet's
+  // category can change.
+  function assignPetToNameBankCategory(petId, category) {
+    const pet = pets.find(p => p.id === petId);
+    if (!pet) return;
+    if (pet.bankCategory === category) return; // already there — nothing to do
+    pet.bankCategory = category;
+    dirtyPetIds.add(pet.id);
+    savePets();
+    renderGrid();
+    showSaveToast();
+    sbSavePetsToSettings(pets).then(({ error }) => {
+      if (error) console.error('Supabase pet save error (assign category):', error);
+      else dirtyPetIds.delete(pet.id);
+    });
+  }
+
+  function renderNameBankCategoryPillsRow() {
+    if (!nameBankCategoryPills) return;
+    const pills = [];
+    pills.push(`<button type="button" data-name-bank-view="all" class="pill text-xs font-bold px-3 py-1.5 rounded-full transition${nameBankViewFilter === 'all' ? ' active' : ''}">All</button>`);
+    // Built-in Archive pill — a valid view filter and drop target like any
+    // custom category below, but never gets a delete × even while editing,
+    // since it isn't part of the user-managed NAME_BANK_CATEGORIES list.
+    pills.push(`<button type="button" data-name-bank-view="${ARCHIVE_CATEGORY}" data-category-drop="${ARCHIVE_CATEGORY}" class="pill text-xs font-bold px-3 py-1.5 rounded-full transition inline-flex items-center gap-1${nameBankViewFilter === ARCHIVE_CATEGORY ? ' active' : ''}">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>
+      Archive
+    </button>`);
+    NAME_BANK_CATEGORIES.forEach(cat => {
+      const active = nameBankViewFilter === cat;
+      pills.push(`
+        <span class="relative inline-flex items-center">
+          <button type="button" data-name-bank-view="${escapeHtml(cat)}" data-category-drop="${escapeHtml(cat)}" class="pill text-xs font-bold pl-3 py-1.5 rounded-full transition inline-flex items-center gap-1 ${nameBankCategoriesEditing ? 'pr-6' : 'pr-3'}${active ? ' active' : ''}">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" class="shrink-0"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+            ${escapeHtml(cat)}
+          </button>
+          ${nameBankCategoriesEditing ? `<button type="button" data-delete-category="${escapeHtml(cat)}" title="Delete category" class="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 flex items-center justify-center rounded-full text-[10px] leading-none ${active ? 'text-white/70 hover:text-white' : 'text-[#8AA39A] hover:text-rose-600'} transition">&times;</button>` : ''}
+        </span>
+      `);
+    });
+    if (isUnlocked) {
+      if (nameBankCategoriesEditing) {
+        // The new-category control lives in exactly one of two states,
+        // same slot either way: the plain "+ New category" button, or (once
+        // clicked) an inline input standing in its place. Committing a name
+        // here (Enter, or clicking/tabbing away) reverts this slot straight
+        // back to the button rather than leaving the input open — see
+        // this function's own commit() below.
+        if (nameBankAddingCategory) {
+          pills.push(`
+            <span class="relative inline-flex items-center">
+              <input id="nameBankNewCategoryInput" type="text" placeholder="Category name" maxlength="40" class="text-xs font-bold pl-3 pr-6 py-1.5 rounded-full border border-[#E2E8E4] focus:border-teal outline-none w-32 bg-white text-forest">
+              <button type="button" id="nameBankNewCategoryCancelBtn" title="Cancel" class="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 flex items-center justify-center rounded-full text-[10px] leading-none text-[#8AA39A] hover:text-rose-600 transition">&times;</button>
+            </span>
+          `);
+        } else {
+          pills.push(`<button type="button" id="nameBankAddCategoryBtn" class="pill text-xs font-bold px-3 py-1.5 rounded-full transition text-tealdark">+ New category</button>`);
+        }
+        pills.push(`<button type="button" id="nameBankCategoriesDoneBtn" class="text-xs font-bold px-3 py-1.5 rounded-full transition bg-forest hover:bg-forestlight text-white">Done</button>`);
+      } else {
+        pills.push(`<button type="button" id="nameBankCategoriesEditBtn" class="pill text-xs font-bold px-3 py-1.5 rounded-full transition text-[#4B5A54]">Edit</button>`);
+      }
+    }
+    nameBankCategoryPills.innerHTML = pills.join('');
+    nameBankCategoryPills.querySelectorAll('[data-name-bank-view]').forEach(btn => {
+      btn.addEventListener('click', () => setNameBankViewFilter(btn.dataset.nameBankView));
+    });
+    nameBankCategoryPills.querySelectorAll('[data-delete-category]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); deleteNameBankCategory(btn.dataset.deleteCategory); });
+    });
+    const editBtn = document.getElementById('nameBankCategoriesEditBtn');
+    if (editBtn) editBtn.addEventListener('click', () => { nameBankCategoriesEditing = true; renderGrid(); });
+    const doneBtn = document.getElementById('nameBankCategoriesDoneBtn');
+    if (doneBtn) doneBtn.addEventListener('click', () => {
+      nameBankCategoriesEditing = false;
+      nameBankAddingCategory = false;
+      renderGrid();
+    });
+    const addBtn = document.getElementById('nameBankAddCategoryBtn');
+    if (addBtn) addBtn.addEventListener('click', () => { nameBankAddingCategory = true; renderGrid(); });
+
+    const input = document.getElementById('nameBankNewCategoryInput');
+    if (input) {
+      setTimeout(() => input.focus(), 10);
+      // Commits whatever's typed (if anything) and always reverts this
+      // slot back to the plain button afterward — success, empty, or
+      // duplicate all end the same way, just with or without a new pill
+      // added to NAME_BANK_CATEGORIES first. The value is cleared as the
+      // very first step, synchronously, before any of the async/re-render
+      // work below: this input gets destroyed and rebuilt by the
+      // renderGrid() a few lines down, and destroying a focused element
+      // fires its own blur event, which would otherwise schedule a SECOND
+      // call to this exact function (see the blur listener further down) —
+      // clearing the value up front makes that harmless second call see
+      // nothing left to commit and just no-op, the same guard the "+ Add"
+      // tag-editor row elsewhere in this file (setupAddRow) already relies
+      // on for the identical reason.
+      async function commit() {
+        const val = input.value.trim();
+        input.value = '';
+        nameBankAddingCategory = false;
+        if (!val) { renderGrid(); return; }
+        const isDuplicate = val.toLowerCase() === ARCHIVE_CATEGORY.toLowerCase() ||
+          NAME_BANK_CATEGORIES.some(c => c.toLowerCase() === val.toLowerCase());
+        if (isDuplicate) {
+          renderGrid();
+          await appAlert('That category already exists.', 'Already exists');
+          return;
+        }
+        NAME_BANK_CATEGORIES.push(val);
+        saveNameBankCategories();
+        renderGrid();
+        showSaveToast(`"${val}" category added`);
+      }
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { commit(); }
+        else if (e.key === 'Escape') { nameBankAddingCategory = false; renderGrid(); }
+      });
+      input.addEventListener('blur', () => { setTimeout(commit, 120); });
+      const cancelBtn = document.getElementById('nameBankNewCategoryCancelBtn');
+      if (cancelBtn) {
+        // Keeps focus on the input entirely (no blur ever fires for this
+        // click), so cancelling can never race with the blur-triggered
+        // commit above — the same technique used for the Live Sync
+        // banner's own dismiss affordance elsewhere in this file.
+        cancelBtn.addEventListener('mousedown', (e) => e.preventDefault());
+        cancelBtn.addEventListener('click', () => { nameBankAddingCategory = false; renderGrid(); });
+      }
+    }
+  }
 
   function renderNameBankRow(pet) {
     // The three lookup shortcuts now live inside the pet's own edit modal
@@ -3686,15 +3937,21 @@
     // compact single-line height, which is why the list below went back to
     // a plain row-major grid instead of the column-packed masonry layout
     // that used to make room for the old CTA stack.
+    // draggable: lets this card be dragged onto one of the category pills
+    // above (see the dragstart/drop handlers near assignPetToNameBankCategory)
+    // — .name-bank-card is the marker the delegated dragstart listener
+    // looks for, data-pet-id already existed for the (separate)
+    // image-assign-target role this same element also plays.
     return `
-      <div class="image-assign-target name-bank-card group relative flex items-center justify-between gap-2 p-3 rounded-xl border border-[#E2E8E4] hover:border-teal transition bg-white cursor-pointer" data-pet-id="${pet.id}">
+      <div class="image-assign-target name-bank-card group relative flex items-center justify-between gap-2 p-3 rounded-xl border border-[#E2E8E4] hover:border-teal transition bg-white cursor-pointer" data-pet-id="${pet.id}" draggable="true">
         <div class="min-w-0 flex-1 flex items-center gap-1">
           <h3 data-name-filter="${escapeHtml(pet.name)}" class="font-bold text-forest text-sm truncate hover:underline">${escapeHtml(pet.name)}</h3>
           ${pet.completed ? `<svg class="shrink-0 text-emerald-500" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" title="Completed on Neopets"><path d="M20 6L9 17l-5-5"/></svg>` : ''}
         </div>
         <div class="shrink-0 flex items-center gap-1">
+          ${pet.bankCategory ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none bg-pink-50 text-pink-700 border border-pink-300">${escapeHtml(pet.bankCategory)}</span>` : ''}
           ${pet.status ? `<span class="text-[9px] font-bold px-1 py-0.5 rounded-full leading-none ${statusStyles[pet.status] || 'bg-slate-100 text-slate-600 border border-slate-200'}">${escapeHtml(pet.status)}</span>` : ''}
-          ${pet.account ? `<span class="text-[9px] font-bold px-1 py-0.5 rounded-full bg-sage text-tealdark border border-sagedeep leading-none">${escapeHtml(pet.account)}</span>` : ''}
+          ${pet.account ? `<span class="text-[9px] font-bold px-1 py-0.5 rounded-full ${ACCOUNT_TAG_CLASS} leading-none">${escapeHtml(pet.account)}</span>` : ''}
           <button data-menu-btn="${pet.id}" class="shrink-0 w-6 h-6 flex items-center justify-center text-[#8AA39A] hover:text-forest hover:bg-sage rounded-full transition">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
           </button>
@@ -3713,7 +3970,18 @@
     nameBankSection.classList.toggle('hidden', !sectionVisible);
     if (!sectionVisible) return;
 
-    nameBankCount.textContent = `(${visibleBank.length})`;
+    // Pills reflect the full bank (not the category-narrowed view below) —
+    // rendered even while collapsed so they're current the moment it's
+    // expanded, and so a category that only just emptied out still shows
+    // up to switch away from.
+    renderNameBankCategoryPillsRow();
+
+    // Category view narrows the grid/count; section visibility above
+    // deliberately does NOT depend on this — an empty category view still
+    // leaves the section (and its pills) up so there's something to switch
+    // away from, rather than the whole thing vanishing.
+    const categoryFiltered = visibleBank.filter(petMatchesNameBankView);
+    nameBankCount.textContent = `(${categoryFiltered.length})`;
     // Collapsed points right, expanded points down — the chevron's native
     // path already points down, so collapsed is the one that needs rotating.
     nameBankChevron.classList.toggle('-rotate-90', !nameBankExpanded);
@@ -3721,24 +3989,59 @@
 
     if (!nameBankExpanded) return; // collapsed — no need to build rows nobody can see yet
 
-    const sorted = [...visibleBank].sort((a, b) =>
+    const sorted = [...categoryFiltered].sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
     );
     nameBankEmpty.classList.toggle('hidden', sorted.length > 0);
     // 'grid' is toggled alongside 'hidden' explicitly (rather than living in
     // the static class list) — same reasoning as imageFilterBanner's
     // hidden/flex toggle elsewhere: relying on both classes being present
-    // at once and hoping cascade order sorts it out is fragile. Back to a
-    // plain row-major grid now that cards are all the same compact height
-    // (the CTA row that used to make heights vary is gone — see
-    // renderNameBankRow) — alphabetical order now reads left-to-right,
-    // top-to-bottom exactly like the main pet grid above it, rather than
-    // the column-packed masonry order that made sense only when some cards
-    // were much taller than others.
+    // at once and hoping cascade order sorts it out is fragile.
     nameBankList.classList.toggle('hidden', sorted.length === 0);
     nameBankList.classList.toggle('grid', sorted.length > 0);
-    nameBankList.innerHTML = sorted.map(renderNameBankRow).join('');
+    // The grid itself is still a plain row-major CSS grid (auto-placement
+    // fills left-to-right, top-to-bottom) — reordering the array here is
+    // what makes it READ as alphabetical top-to-bottom within each column
+    // instead, matching how a phone book or spreadsheet would sort a
+    // multi-column list, rather than zig-zagging across the whole row
+    // before reaching B. Below the 499px breakpoint the grid collapses to
+    // a single CSS column (#nameBankList's own media query), where
+    // row-major and column-major are identical, so this only changes
+    // anything at 3 columns and up.
+    const nameBankColumnCount = window.innerWidth <= 499 ? 1 : 3;
+    nameBankList.innerHTML = columnMajorOrder(sorted, nameBankColumnCount).map(renderNameBankRow).join('');
   }
+  // Reorders `list` so that placing it into a row-major CSS grid with
+  // `columns` columns via straightforward auto-placement reads
+  // alphabetically down each column first, then across to the next one —
+  // e.g. with 12 names and 3 columns: column 1 gets items 1-4, column 2
+  // gets 5-8, column 3 gets 9-12, each internally still in the original
+  // (already-sorted) order.
+  function columnMajorOrder(list, columns) {
+    if (columns <= 1 || list.length <= columns) return list;
+    const rows = Math.ceil(list.length / columns);
+    const result = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < columns; c++) {
+        const idx = c * rows + r;
+        if (idx < list.length) result.push(list[idx]);
+      }
+    }
+    return result;
+  }
+  // renderNameBank() already recomputes the right column-major order on
+  // every normal re-render (any filter/data change), which covers nearly
+  // every case — this only catches the narrower edge of someone resizing
+  // the browser window itself across the 499px breakpoint with nothing
+  // else prompting a re-render in between.
+  let nameBankIsSingleColumn = window.innerWidth <= 499;
+  window.addEventListener('resize', () => {
+    const nowSingleColumn = window.innerWidth <= 499;
+    if (nowSingleColumn !== nameBankIsSingleColumn) {
+      nameBankIsSingleColumn = nowSingleColumn;
+      renderGrid();
+    }
+  });
 
   nameBankToggle.addEventListener('click', () => {
     nameBankExpanded = !nameBankExpanded;
@@ -3764,6 +4067,46 @@
     }
     const row = e.target.closest('[data-pet-id]');
     if (row) openModal(row.dataset.petId);
+  });
+
+  // ---------- Name Bank: drag a card onto a category pill to assign it ----------
+  // Delegated on petsMain (like the image-assign-target handlers above)
+  // rather than on nameBankList/nameBankCategoryPills individually, since
+  // the drag SOURCE (a .name-bank-card) and drop TARGET (a category pill)
+  // live in different containers within it. 'bankpet:' prefixes the
+  // dataTransfer payload so this never gets confused with the unrelated
+  // deck-image drag, which also uses text/plain but for an image id, not
+  // a pet id — the two never target the same drop zones, but keeping the
+  // payload self-describing avoids any ambiguity regardless.
+  petsMain.addEventListener('dragstart', (e) => {
+    const card = e.target.closest('.name-bank-card');
+    if (!card) return;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', 'bankpet:' + card.dataset.petId); } catch (err) { console.error('Name Bank drag start: setData failed', err); }
+    }
+  });
+  petsMain.addEventListener('dragover', (e) => {
+    const pill = e.target.closest('[data-category-drop]');
+    if (pill) {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      pill.classList.add('drop-target-active');
+    }
+  });
+  petsMain.addEventListener('dragleave', (e) => {
+    const pill = e.target.closest('[data-category-drop]');
+    if (pill) pill.classList.remove('drop-target-active');
+  });
+  petsMain.addEventListener('drop', (e) => {
+    const pill = e.target.closest('[data-category-drop]');
+    if (!pill) return;
+    e.preventDefault();
+    pill.classList.remove('drop-target-active');
+    const raw = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+    if (!raw || !raw.startsWith('bankpet:')) return;
+    const petId = raw.slice('bankpet:'.length);
+    assignPetToNameBankCategory(petId, pill.dataset.categoryDrop);
   });
 
   // ---------- pet wishlist ----------
@@ -4268,6 +4611,7 @@
   // ---------- card "..." menu ----------
   const cardMenu = document.getElementById('cardMenu');
   const menuDuplicateBtn = document.getElementById('menuDuplicateBtn');
+  const menuArchiveBtn = document.getElementById('menuArchiveBtn');
   const menuDeleteBtn = document.getElementById('menuDeleteBtn');
 
   function toggleCardMenu(btn) {
@@ -4314,6 +4658,38 @@
   menuDeleteBtn.addEventListener('click', () => {
     if (activeMenuPetId) deletePet(activeMenuPetId);
     closeCardMenu();
+  });
+
+  // Sends a pet straight to the Name Bank's built-in Archive category from
+  // its "..." menu, whether it currently has a picture or not. A pet with
+  // no image is already a Name Bank entry by definition (see
+  // groupPetsForDisplay/renderNameBank's own comments) — this is what
+  // actually MOVES a pet with a picture into the Name Bank in the first
+  // place, since keeping the image while also filing it as archived
+  // would leave it showing in both places at once, which isn't what
+  // "archived" is supposed to mean here. Never touches the underlying
+  // Storage file itself (other pets may still share it) — only this
+  // pet's own reference to it, same as every other unpair action in this
+  // app.
+  menuArchiveBtn.addEventListener('click', () => {
+    const petId = activeMenuPetId;
+    closeCardMenu();
+    if (!petId) return;
+    const pet = pets.find(p => p.id === petId);
+    if (!pet) return;
+    if (pet.imageSrc || (Array.isArray(pet.altImageSrcs) && pet.altImageSrcs.length)) {
+      pet.imageSrc = null;
+      pet.altImageSrcs = [];
+    }
+    pet.bankCategory = ARCHIVE_CATEGORY;
+    dirtyPetIds.add(pet.id);
+    savePets();
+    renderGrid();
+    showToast(`"${pet.name}" archived`);
+    sbSavePetsToSettings(pets).then(({ error }) => {
+      if (error) console.error('Supabase pet save error (archive):', error);
+      else dirtyPetIds.delete(pet.id);
+    });
   });
 
   // ---------- modal ----------
@@ -5016,8 +5392,23 @@
   const searchNeopetBankFields = document.getElementById('searchNeopetBankFields');
   const searchNeopetStatusSelect = document.getElementById('searchNeopetStatusSelect');
   const searchNeopetAccountSelect = document.getElementById('searchNeopetAccountSelect');
+  const searchNeopetStatusFieldWrap = document.getElementById('searchNeopetStatusFieldWrap');
+  const searchNeopetAccountFieldWrap = document.getElementById('searchNeopetAccountFieldWrap');
   const searchNeopetNotesInput = document.getElementById('searchNeopetNotesInput');
   const searchNeopetOwnerCopyBtn = document.getElementById('searchNeopetOwnerCopyBtn');
+
+  // Same Account-only-for-"Own" rule as the main Edit/Add pet modal (see
+  // NO_OWNER_ACCOUNT_STATUSES and updateModalStatusDependentFields) —
+  // adapted to this modal's own layout, which (unlike the main one) keeps
+  // Neopets owner as its own always-visible field above rather than
+  // swapping it in for Account, since it doubles as the owner-lookup
+  // field regardless of status.
+  function updateSearchNeopetStatusDependentFields() {
+    const isOwn = searchNeopetStatusSelect.value === 'Own';
+    searchNeopetAccountFieldWrap.classList.toggle('hidden', !isOwn);
+    searchNeopetStatusFieldWrap.classList.toggle('col-span-2', !isOwn);
+  }
+  searchNeopetStatusSelect.addEventListener('change', updateSearchNeopetStatusDependentFields);
 
   function openSearchNeopetModal() {
     searchNeopetNameInput.value = '';
@@ -5030,6 +5421,7 @@
     searchNeopetToggleBankLabel.textContent = 'Add name';
     searchNeopetStatusSelect.innerHTML = '<option value="">None</option>' + STATUSES.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
     searchNeopetAccountSelect.innerHTML = '<option value="">None</option>' + ACCOUNTS.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+    updateSearchNeopetStatusDependentFields();
     searchNeopetNotesInput.value = '';
     showModalEl(searchNeopetModal);
     searchNeopetPillBtn.classList.add('pill-open');
@@ -8065,6 +8457,28 @@
         changed = true;
       } else if (HIDDEN_ACCOUNTS.size) {
         sbSaveSetting('hidden_accounts', [...HIDDEN_ACCOUNTS]);
+      }
+      // Same tagsDirtyThisSession protection as accounts/statuses above —
+      // see that comment.
+      let nameBankCategoriesChanged = false;
+      if (tagsDirtyThisSession) {
+        sbSaveSetting('name_bank_categories', NAME_BANK_CATEGORIES);
+      } else if (Array.isArray(remoteSettings.name_bank_categories) && remoteSettings.name_bank_categories.length) {
+        NAME_BANK_CATEGORIES = remoteSettings.name_bank_categories;
+        nameBankCategoriesChanged = true;
+        changed = true;
+      } else if (NAME_BANK_CATEGORIES.length) {
+        sbSaveSetting('name_bank_categories', NAME_BANK_CATEGORIES);
+      }
+      if (nameBankCategoriesChanged) {
+        safeLocalStorageSet(STORAGE_NAME_BANK_CATEGORIES, JSON.stringify(NAME_BANK_CATEGORIES));
+        // A category this device had selected as its current Name Bank view
+        // might no longer exist in the reconciled list (deleted elsewhere) —
+        // fall back to the default view rather than silently filtering to
+        // nothing.
+        if (nameBankViewFilter !== null && nameBankViewFilter !== 'all' && nameBankViewFilter !== ARCHIVE_CATEGORY && !NAME_BANK_CATEGORIES.includes(nameBankViewFilter)) {
+          nameBankViewFilter = null;
+        }
       }
       if (typeof remoteSettings.adminPinHash === 'string' && remoteSettings.adminPinHash) {
         adminPinHash = remoteSettings.adminPinHash;
