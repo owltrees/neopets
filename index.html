@@ -1120,6 +1120,17 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
     </div>
+    <!-- Shown while a single pet's own looks are expanded into separate
+         cards (see data-view-looks / expandedLooksPetId) — the same idea
+         as imageFilterBanner above, just for a different expanded state,
+         so it gets its own banner rather than overloading that one's
+         "filtering by image" wording, which wouldn't be accurate here. -->
+    <div id="lookViewBanner" class="hidden items-center gap-2 bg-sage border border-sagedeep rounded-xl px-4 py-2 mt-2.5">
+      <span id="lookViewBannerText" class="text-sm font-semibold text-forest truncate">Viewing looks</span>
+      <button id="exitLookViewBtn" aria-label="Exit looks view" class="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-white border border-sagedeep text-forest hover:text-tealdark hover:border-teal transition">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -2327,6 +2338,12 @@
   // X, Clear filters, or re-clicking the same deck thumbnail) also exits
   // this view for free, with nothing extra to wire up per entry point.
   let expandedClusterSrc = null;
+  // Same idea as expandedClusterSrc just above, mirrored for the opposite
+  // direction: a single pet with multiple looks of its own (rather than
+  // multiple pets sharing one look) expanded into individual "fake" cards,
+  // one per look — see data-view-looks, renderLookCardHtml, and where this
+  // is consumed in groupPetsForDisplay/renderGrid. Holds a pet id, or null.
+  let expandedLooksPetId = null;
   let sortMode = 'newest';
   let editingId = null;
   let pendingImageSrc = null;
@@ -3158,6 +3175,10 @@
     filters.imageSrc = null;
     renderGrid();
   });
+  document.getElementById('exitLookViewBtn').addEventListener('click', () => {
+    expandedLooksPetId = null;
+    renderGrid();
+  });
 
   // ---------- staging deck rendering ----------
   const deckGrid = document.getElementById('deckGrid');
@@ -3512,6 +3533,8 @@
   const petCount = document.getElementById('petCount');
   const imageFilterBanner = document.getElementById('imageFilterBanner');
   const imageFilterThumb = document.getElementById('imageFilterThumb');
+  const lookViewBanner = document.getElementById('lookViewBanner');
+  const lookViewBannerText = document.getElementById('lookViewBannerText');
 
   function matchesFilters(pet) {
     if (filters.search) {
@@ -3593,6 +3616,42 @@
       }
     });
     return groups;
+  }
+
+  // A "fake" card: there's no separate pet record behind it (a pet's looks
+  // are just alternate images on ONE record, unlike a stack's candidates,
+  // which really are separate pets) — every one of these for the same pet
+  // shares its data and clicking any of them opens the exact same edit
+  // modal. Deliberately simpler than renderPetCardHtml: no "..." menu (an
+  // action like Delete/Archive would be ambiguous — delete the PET, or just
+  // this look? — so it's left out entirely here, reachable instead from
+  // wherever a person lands after clicking through), no drag-drop target
+  // (dropping a new image onto "look 2 of 3" specifically isn't a supported
+  // action), no +N looks badge or grid icon (already mid-way through
+  // looking at all of them). Only the picture and a small "Main" tag change
+  // between instances; everything else about the pet is identical.
+  function renderLookCardHtml(pet, src, isMain) {
+    return `
+      <div class="pet-card self-start bg-white border border-[#E2E8E4] shadow-card card-hover overflow-hidden cursor-pointer" data-pet-id="${pet.id}" data-look-src="${escapeHtml(src)}">
+        <div class="relative w-full block bg-sage overflow-hidden">
+          <img src="${src}" class="w-full h-full object-cover pointer-events-none" alt="${escapeHtml(pet.name)}">
+          ${isMain ? `<span class="absolute top-2 left-2 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-forest/85 text-white leading-none pointer-events-none">Main</span>` : ''}
+        </div>
+        <div class="p-3">
+          <div class="flex items-center gap-1 min-w-0">
+            <h3 class="font-extrabold text-forest text-sm truncate">${escapeHtml(pet.name)}</h3>
+            ${pet.isFavorite ? `<svg class="shrink-0 text-amber-400" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" title="Favorite"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7-5.4-4.7 7.1-.6L12 2z"/></svg>` : ''}
+            ${pet.completed ? `<svg class="shrink-0 text-emerald-500" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" title="Completed on Neopets"><path d="M20 6L9 17l-5-5"/></svg>` : ''}
+          </div>
+          <div class="flex flex-wrap gap-1 mt-1.5">
+            ${pet.status ? `<span class="text-[9px] font-bold px-1 py-0.5 rounded-full leading-none ${statusStyles[pet.status] || 'bg-slate-100 text-slate-600 border border-slate-200'}">${escapeHtml(pet.status)}</span>` : ''}
+            ${pet.account ? `<span class="text-[9px] font-bold px-1 py-0.5 rounded-full ${ACCOUNT_TAG_CLASS} leading-none">${escapeHtml(pet.account)}</span>` : ''}
+            ${(!pet.account && !pet.status) ? `<span class="text-[9px] text-[#8AA39A]">No tags</span>` : ''}
+          </div>
+          ${pet.notes ? `<p class="text-xs text-[#6E8880] mt-1.5 line-clamp-2">${escapeHtml(pet.notes)}</p>` : ''}
+        </div>
+      </div>
+    `;
   }
 
   function renderPetCardHtml(pet) {
@@ -3763,6 +3822,23 @@
       imageFilterBanner.classList.add('hidden'); imageFilterBanner.classList.remove('flex');
     }
 
+    // Same self-correcting idea as expandedClusterSrc just above: if the
+    // pet no longer exists, no longer has extra looks (e.g. down to just
+    // one after a deletion), or has been filtered out of view entirely,
+    // drop this state rather than leaving it silently stale.
+    let expandedLooksPet = expandedLooksPetId ? pets.find(p => p.id === expandedLooksPetId) : null;
+    if (expandedLooksPet && (!Array.isArray(expandedLooksPet.altImageSrcs) || !expandedLooksPet.altImageSrcs.length || !matchesFilters(expandedLooksPet))) {
+      expandedLooksPet = null;
+    }
+    expandedLooksPetId = expandedLooksPet ? expandedLooksPet.id : null;
+    if (expandedLooksPet) {
+      lookViewBanner.classList.remove('hidden'); lookViewBanner.classList.add('flex');
+      const lookCount = 1 + expandedLooksPet.altImageSrcs.length;
+      lookViewBannerText.textContent = `Viewing ${lookCount} looks for "${expandedLooksPet.name}"`;
+    } else {
+      lookViewBanner.classList.add('hidden'); lookViewBanner.classList.remove('flex');
+    }
+
     const visible = sortPets(pets.filter(matchesFilters));
     // Split into pictured pets (the main grid, exactly as before) and
     // nameless-so-far candidates (the Name Bank) — a pet's presence in one
@@ -3783,8 +3859,18 @@
       gridEmptyBody.textContent = 'Try adjusting your filters, or add a new pet name to get started.';
     }
 
-    const groups = groupPetsForDisplay(visiblePets);
-    petGrid.innerHTML = groups.map(group => group.length > 1 ? renderClusterCardHtml(group) : renderPetCardHtml(group[0])).join('');
+    // Same "actually isolate the view" behavior as View all on a cluster
+    // (which works by filtering the pet list itself, via filters.imageSrc
+    // in matchesFilters) — expandedLooksPet bypasses grouping/rendering
+    // everything else entirely rather than just inserting its look-cards
+    // alongside the normal grid.
+    if (expandedLooksPet) {
+      const looks = [expandedLooksPet.imageSrc, ...expandedLooksPet.altImageSrcs].filter(Boolean);
+      petGrid.innerHTML = looks.map((src, i) => renderLookCardHtml(expandedLooksPet, src, i === 0)).join('');
+    } else {
+      const groups = groupPetsForDisplay(visiblePets);
+      petGrid.innerHTML = groups.map(group => group.length > 1 ? renderClusterCardHtml(group) : renderPetCardHtml(group[0])).join('');
+    }
     alignClusterStacks();
 
     renderNameBank(visibleBank);
@@ -4333,13 +4419,17 @@
     const menuBtn = e.target.closest('[data-menu-btn]');
     if (menuBtn) { e.stopPropagation(); toggleCardMenu(menuBtn); return; }
     // Same purpose as data-cluster-view-all just below, for a single pet's
-    // own extra looks rather than a cluster's other candidates — opens the
-    // same edit modal a plain click on the card would anyway, just as a
-    // clearly-labeled, discoverable shortcut specifically for "this one has
-    // more than one look, click here to see them" rather than a generic
-    // "edit this pet" click.
+    // own extra looks rather than a cluster's other candidates — splits it
+    // into one card per look (each linking to the same edit modal, since
+    // they're all the same pet record — see renderLookCardHtml) instead of
+    // going straight to the modal itself.
     const viewLooksBtn = e.target.closest('[data-view-looks]');
-    if (viewLooksBtn) { e.stopPropagation(); openModal(viewLooksBtn.dataset.viewLooks); return; }
+    if (viewLooksBtn) {
+      e.stopPropagation();
+      expandedLooksPetId = viewLooksBtn.dataset.viewLooks;
+      renderGrid();
+      return;
+    }
     const dismissBtn = e.target.closest('[data-dismiss-candidate]');
     if (dismissBtn) { e.stopPropagation(); dismissClusterCandidate(dismissBtn.dataset.dismissCandidate); return; }
     const pickBtn = e.target.closest('[data-pick-winner]');
@@ -4372,7 +4462,7 @@
     const clusterRow = e.target.closest('[data-cluster-pet-id]');
     if (clusterRow) { openModal(clusterRow.dataset.clusterPetId); return; }
     const card = e.target.closest('.pet-card');
-    if (card && card.dataset.petId) openModal(card.dataset.petId);
+    if (card && card.dataset.petId) openModal(card.dataset.petId, card.dataset.lookSrc || undefined);
   });
 
   // One-click "keep this candidate, unpair the rest of its cluster" — never
@@ -5291,7 +5381,7 @@
     toggleModalDeckPickerSection(false);
   });
 
-  async function openModal(petId) {
+  async function openModal(petId, forceImageSrc) {
     if (!isUnlocked) {
       await promptEnterPin();
       if (!isUnlocked) return; // user cancelled or entered the wrong PIN
@@ -5320,7 +5410,6 @@
     modalCategoryFieldWrap.classList.toggle('hidden', !pet || !!pet.imageSrc);
     modalMPCheckbox.checked = pet ? !!pet.hasMP : false;
     modalCompletedCheckbox.checked = pet ? !!pet.completed : false;
-    pendingImageSrc = pet ? (pet.imageSrc || null) : null;
     // Rebuilt fresh from storage every time the modal opens — main image
     // first, then alts in their saved order. This is the ONE moment
     // main-first reordering happens; from here on, order only changes
@@ -5328,6 +5417,19 @@
     pendingLooksOrder = pet
       ? [...new Set([pet.imageSrc, ...(Array.isArray(pet.altImageSrcs) ? pet.altImageSrcs : [])].filter(Boolean))]
       : [];
+    // Defaults to the pet's actual current main image — but if this modal
+    // was opened from one of the "fake" per-look cards (see
+    // renderLookCardHtml/data-look-src), pre-selects whichever specific
+    // look was actually clicked instead, so the preview matches the card
+    // that was clicked rather than always jumping back to Main. Falls back
+    // to the real main if the passed src somehow isn't one of this pet's
+    // own looks, as a safety net. Same as picking a different look from the
+    // Looks row further down — not committed to the pet's actual data
+    // unless Save changes is clicked, Cancel/closing discards it same as
+    // any other in-progress edit here.
+    pendingImageSrc = pet
+      ? ((forceImageSrc && pendingLooksOrder.includes(forceImageSrc)) ? forceImageSrc : (pet.imageSrc || null))
+      : null;
     modalDeleteBtn.classList.toggle('hidden', !pet);
     modalFavoriteBtn.classList.toggle('hidden', !pet);
     pendingIsFavorite = pet ? !!pet.isFavorite : false;
