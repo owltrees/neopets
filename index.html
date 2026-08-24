@@ -1402,9 +1402,30 @@
     </div>
     <div class="flex-1 overflow-y-auto">
       <p class="px-5 pt-4 text-xs text-[#8AA39A] leading-relaxed">Colors are saved for this pet only. The page stays interactive while this panel is open.</p>
-      <div id="customizeSwatchList" class="p-5 space-y-4"></div>
-      <div class="px-5 pb-6 text-left">
-        <button id="resetThemeBtn" type="button" class="text-xs font-bold text-rose-600 hover:text-rose-700 px-3 py-2 rounded-lg hover:bg-rose-50 transition">Reset colors to default</button>
+      <div id="customizeSwatchList" class="p-5 pb-3 space-y-4"></div>
+      <div class="px-5 pb-5 text-left">
+        <button id="resetThemeBtn" type="button" class="text-xs font-bold text-rose-600 hover:text-rose-700 px-3 py-2 -mx-3 rounded-lg hover:bg-rose-50 transition">Reset colors to default</button>
+      </div>
+
+      <div class="px-5 py-4 border-t border-[#E2E8E4] space-y-1">
+        <p class="text-[11px] font-bold tracking-wide text-[#8AA39A] uppercase mb-1">Neopets CSS</p>
+        <button id="copyLookupCssBtn" type="button" class="w-full flex items-center gap-3 rounded-xl px-2 py-2.5 -mx-2 hover:bg-sage/60 transition-colors text-left">
+          <span aria-hidden="true" class="text-lg shrink-0">📋</span>
+          <span class="text-sm font-semibold text-forest">Copy lookup CSS</span>
+        </button>
+        <button id="editMasterCssBtn" type="button" class="w-full flex items-center gap-3 rounded-xl px-2 py-2.5 -mx-2 hover:bg-sage/60 transition-colors text-left">
+          <span aria-hidden="true" class="text-lg shrink-0">🛠️</span>
+          <span class="text-sm font-semibold text-forest">Edit master CSS</span>
+        </button>
+      </div>
+
+      <div id="petpetpetToggleRow" class="px-5 py-4 border-t border-[#E2E8E4]">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-semibold text-forest">Show petpetpet</span>
+          <button id="petpetpetToggleBtn" type="button" role="switch" aria-checked="false" title="Show a second, smaller pet next to the petpet" class="relative w-10 h-6 rounded-full bg-[#E2E8E4] transition-colors shrink-0">
+            <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"></span>
+          </button>
+        </div>
       </div>
     </div>
     <div class="p-5 border-t border-[#E2E8E4] shrink-0">
@@ -1848,6 +1869,37 @@
   </div>
 </div>
 
+<!-- MASTER LOOKUP CSS EDITOR — one shared template used by "Copy lookup CSS"
+     on every pet's Customize drawer; edits here apply globally, not just to
+     the pet whose drawer was open when this was launched. -->
+<div id="masterCssModal" class="hidden fixed inset-0 z-[110] modal-backdrop items-center justify-center p-4">
+  <div class="modal-card bg-white rounded-2xl w-full max-w-2xl shadow-2xl p-6 flex flex-col max-h-[85vh]">
+    <h3 class="font-extrabold text-lg text-forest mb-1">Edit master lookup CSS</h3>
+    <p class="text-xs text-[#8AA39A] leading-relaxed mb-3">
+      This is the shared template "Copy lookup CSS" fills in with each pet's colors and name. Changes here apply to every pet, on every device. Use
+      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{pageBg}}</code>,
+      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{borderColor}}</code>,
+      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{borderColorRgb}}</code>,
+      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{headerBg}}</code>,
+      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{headerAccent}}</code>,
+      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{boldText}}</code>,
+      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{linkColor}}</code>,
+      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{linkHover}}</code>,
+      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{titleAccent}}</code> and
+      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{petName}}</code>
+      as placeholders — each one is swapped for the real value when you copy.
+    </p>
+    <textarea id="masterCssTextarea" spellcheck="false" class="flex-1 min-h-[320px] w-full px-3.5 py-3 rounded-xl border border-[#E2E8E4] text-xs font-mono leading-relaxed bg-[#FAFCFC] text-[#2B332F] resize-none focus:outline-none focus:border-teal"></textarea>
+    <div class="flex items-center justify-between gap-2 mt-4">
+      <button id="masterCssResetBtn" type="button" class="text-xs font-bold text-rose-600 hover:text-rose-700 px-3 py-2 rounded-lg hover:bg-rose-50 transition">Reset to default</button>
+      <div class="flex items-center gap-2">
+        <button id="masterCssCancelBtn" type="button" class="text-sm font-semibold text-[#6E8880] hover:text-forest px-4 py-2.5 rounded-full hover:bg-sage transition">Cancel</button>
+        <button id="masterCssSaveBtn" type="button" class="text-sm font-bold text-white bg-forest hover:bg-forestlight px-5 py-2.5 rounded-full transition">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   "use strict";
@@ -2024,12 +2076,24 @@
   // the same one instead of each falling back to its own default.
   function buildSyncedLookupEntry(snapshot) {
     const petpetImg = snapshot.petpet && snapshot.petpet.imageUrl;
+    const ppp = (snapshot.petpet && snapshot.petpet.petpetpet && typeof snapshot.petpet.petpetpet === 'object') ? snapshot.petpet.petpetpet : {};
+    const pppImg = ppp.imageUrl;
+    const flavor = (snapshot.flavor && typeof snapshot.flavor === 'object') ? snapshot.flavor : {};
     return {
       theme: snapshot.theme || {},
       petpet: {
         name: (snapshot.petpet && snapshot.petpet.name) || '',
         species: (snapshot.petpet && snapshot.petpet.species) || '',
-        imageUrl: (petpetImg && !petpetImg.startsWith('data:')) ? petpetImg : ''
+        imageUrl: (petpetImg && !petpetImg.startsWith('data:')) ? petpetImg : '',
+        petpetpet: {
+          enabled: !!ppp.enabled,
+          name: ppp.name || '',
+          imageUrl: (pppImg && !pppImg.startsWith('data:')) ? pppImg : ''
+        }
+      },
+      flavor: {
+        likes: flavor.likes || '',
+        greeting: flavor.greeting || ''
       },
       description: stripImagesFromHTML(snapshot.description || ''),
       activeMediaId: snapshot.activeMediaId || '',
@@ -6559,6 +6623,8 @@
   const customizeDrawerCloseBottomBtn = document.getElementById('customizeDrawerCloseBottomBtn');
   const customizeSwatchList = document.getElementById('customizeSwatchList');
   const resetThemeBtn = document.getElementById('resetThemeBtn');
+  const copyLookupCssBtn = document.getElementById('copyLookupCssBtn');
+  const petpetpetToggleBtn = document.getElementById('petpetpetToggleBtn');
 
   let currentDetailPetName = null;
   let currentDetailPet = null;
@@ -6620,6 +6686,7 @@
     const snapshot = {
       theme: currentLookup.theme,
       petpet: currentLookup.petpet,
+      flavor: currentLookup.flavor, // editable "likes"/"would greet" text — see PLACEHOLDER_LIKES/GREETINGS fallback in renderStatsPanel
       description: currentLookup.description,
       mediaUrl: currentLookup.mediaUrl,
       activeMediaId: currentLookup.activeMediaId // which render (.webm/.mp4/image) is on the stage — without this, a switch never survives a reload
@@ -6766,10 +6833,15 @@
   }
 
   function renderStatsPanel() {
+    ensureCurrentLookup();
     const activePet = currentDetailPet || getFallbackPet();
     const nameUpper = safeDetailName().toUpperCase();
     const account = (activePet && activePet.account && String(activePet.account).trim()) || 'Main';
     const s = computePlaceholderStats(activePet);
+    // An empty flavor field means "not customized yet" — fall back to this
+    // pet's deterministic placeholder phrase in that case.
+    const likesText = currentLookup.flavor.likes || s.likes;
+    const greetingText = currentLookup.flavor.greeting || s.greeting;
 
     statsPanel.innerHTML = `
       <p class="mb-1">
@@ -6777,8 +6849,8 @@
         <span id="detailOwnerLink" class="lookup-link font-semibold" title="View ${escapeHtml(account)}'s pets in Preview">${escapeHtml(account)}</span>
       </p>
       <p class="mt-3">
-        <span class="lookup-bold">${escapeHtml(nameUpper)}</span> likes <span class="lookup-bold">${escapeHtml(s.likes)}</span>.<br>
-        When meeting others, <span class="lookup-bold">${escapeHtml(nameUpper)}</span> would <span class="lookup-bold">${escapeHtml(s.greeting)}</span>.
+        <span class="lookup-bold">${escapeHtml(nameUpper)}</span> likes <span id="statsLikesSpan" class="lookup-bold lookup-editable" title="Click to edit">${escapeHtml(likesText)}</span>.<br>
+        When meeting others, <span class="lookup-bold">${escapeHtml(nameUpper)}</span> would <span id="statsGreetingSpan" class="lookup-bold lookup-editable" title="Click to edit">${escapeHtml(greetingText)}</span>.
       </p>
 
       <div class="grid grid-cols-2 gap-x-4 mt-5 pt-4 border-t border-dashed border-[#E2E8E4] text-left">
@@ -6811,38 +6883,67 @@
 
     const ownerLink = document.getElementById('detailOwnerLink');
     if (ownerLink) ownerLink.addEventListener('click', () => goToAccountInPreview(account === 'Main' ? '' : account));
+
+    enableInlineEdit(document.getElementById('statsLikesSpan'), {
+      getValue: () => currentLookup.flavor.likes || s.likes,
+      onSave: (val) => {
+        ensureCurrentLookup();
+        currentLookup.flavor.likes = (val || '').trim();
+        persistLookup();
+        showSaveToast();
+        renderStatsPanel();
+      }
+    });
+    enableInlineEdit(document.getElementById('statsGreetingSpan'), {
+      getValue: () => currentLookup.flavor.greeting || s.greeting,
+      onSave: (val) => {
+        ensureCurrentLookup();
+        currentLookup.flavor.greeting = (val || '').trim();
+        persistLookup();
+        showSaveToast();
+        renderStatsPanel();
+      }
+    });
   }
 
   // ---- petpet zone ----
   // Clicking the petpet image "arms" it to accept the very next Ctrl+V/Cmd+V
   // paste anywhere on the page — either an image file or an image URL string —
   // rather than requiring a separate paste target to be focused.
-  let petpetPasteArmed = false;
-  function armPetpetPaste() {
-    petpetPasteArmed = true;
-    const btn = document.getElementById('petpetImgBtn');
+  // petpetPasteArmed is null (not armed), 'petpet' (main petpet image armed),
+  // or 'petpetpet' (the second, optional petpet's-petpet image armed) — same
+  // click-to-arm-then-paste flow, just routed to a different image slot.
+  let petpetPasteArmed = null;
+  function petpetPasteBtnId(target) { return target === 'petpetpet' ? 'petpetpetImgBtn' : 'petpetImgBtn'; }
+  function armPetpetPaste(target) {
+    petpetPasteArmed = target;
+    const btn = document.getElementById(petpetPasteBtnId(target));
     if (btn) {
       btn.classList.add('ring-2', 'ring-teal');
       btn.title = 'Paste now (Ctrl+V) — click again to cancel';
     }
   }
   function disarmPetpetPaste() {
-    petpetPasteArmed = false;
-    const btn = document.getElementById('petpetImgBtn');
+    const btn = petpetPasteArmed ? document.getElementById(petpetPasteBtnId(petpetPasteArmed)) : null;
     if (btn) {
       btn.classList.remove('ring-2', 'ring-teal');
       btn.title = 'Click or paste image (Ctrl+V)';
     }
+    petpetPasteArmed = null;
   }
   // clicking anywhere outside the armed button cancels paste-arming
   document.addEventListener('click', (e) => {
-    if (petpetPasteArmed && !e.target.closest('#petpetImgBtn')) disarmPetpetPaste();
+    if (petpetPasteArmed && !e.target.closest('#' + petpetPasteBtnId(petpetPasteArmed))) disarmPetpetPaste();
   });
   document.addEventListener('paste', async (e) => {
     if (!petpetPasteArmed || !currentLookup) return;
+    const target = petpetPasteArmed; // 'petpet' | 'petpetpet'
     const clipboard = e.clipboardData || window.clipboardData;
     if (!clipboard) return;
     const petNameAtPaste = currentDetailPetName;
+    ensureCurrentLookup();
+    const storagePrefix = target === 'petpetpet' ? 'petpetpet-images' : 'petpet-images';
+    const getTargetObj = () => (target === 'petpetpet' ? currentLookup.petpet.petpetpet : currentLookup.petpet);
 
     // an actual image file/blob on the clipboard takes priority
     const items = clipboard.items;
@@ -6861,7 +6962,7 @@
               });
               // 1) instant feedback from the local data: URL — no waiting
               // on a network round-trip before the petpet zone updates.
-              currentLookup.petpet.imageUrl = dataUrl;
+              getTargetObj().imageUrl = dataUrl;
               persistLookup();
               renderPetpetZone();
               showSaveToast();
@@ -6872,13 +6973,16 @@
               // buildSyncedLookupEntry). Guarded against the user having
               // since navigated to a different pet or pasted a different
               // image over this one before the upload finished.
-              sbUploadAsset(file, `petpet-images/${encodeURIComponent(getMediaKey(petNameAtPaste))}`)
+              sbUploadAsset(file, `${storagePrefix}/${encodeURIComponent(getMediaKey(petNameAtPaste))}`)
                 .then((url) => {
                   if (!url) return;
-                  if (currentDetailPetName === petNameAtPaste && currentLookup && currentLookup.petpet.imageUrl === dataUrl) {
-                    currentLookup.petpet.imageUrl = url;
-                    persistLookup();
-                    renderPetpetZone();
+                  if (currentDetailPetName === petNameAtPaste && currentLookup) {
+                    const liveObj = getTargetObj();
+                    if (liveObj && liveObj.imageUrl === dataUrl) {
+                      liveObj.imageUrl = url;
+                      persistLookup();
+                      renderPetpetZone();
+                    }
                   }
                 })
                 .catch((err) => console.error('Petpet image Storage upload error:', err));
@@ -6898,7 +7002,7 @@
     const trimmed = text.trim();
     if (trimmed) {
       e.preventDefault();
-      currentLookup.petpet.imageUrl = trimmed;
+      getTargetObj().imageUrl = trimmed;
       persistLookup();
       renderPetpetZone();
       showSaveToast();
@@ -6909,18 +7013,31 @@
   function renderPetpetZone() {
     ensureCurrentLookup();
     const pp = currentLookup.petpet;
+    const ppp = pp.petpetpet;
+    const showSecond = !!ppp.enabled;
     const nameUpper = safeDetailName().toUpperCase();
     petpetZone.innerHTML = `
       <p class="text-sm text-[#333] mb-3"><span class="lookup-bold">${escapeHtml(nameUpper)}</span> has a Petpet!</p>
-      <button id="petpetImgBtn" type="button" class="mx-auto block w-20 h-20 rounded-2xl border border-[#E2E8E4] overflow-hidden bg-sage/40 hover:border-teal transition relative group" title="Click or paste image (Ctrl+V)">
-        ${pp.imageUrl
-          ? `<img src="${escapeHtml(pp.imageUrl)}" class="w-full h-full object-cover" alt="${escapeHtml(pp.name || 'Petpet')}" onerror="this.style.display='none';">`
-          : `<span class="absolute inset-0 flex items-center justify-center text-[#9DB8AF]"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21C12 21 4 14.5 4 9.5C4 6.5 6.2 4.5 9 4.5C10.5 4.5 11.5 5.3 12 6C12.5 5.3 13.5 4.5 15 4.5C17.8 4.5 20 6.5 20 9.5C20 14.5 12 21 12 21Z"/></svg></span>`}
-        <span class="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[9px] font-bold text-center leading-tight px-1">Click or paste<br>image (Ctrl+V)</span>
-      </button>
+      <div class="flex items-center justify-center gap-4">
+        <button id="petpetImgBtn" type="button" class="w-20 h-20 rounded-2xl border border-[#E2E8E4] overflow-hidden bg-sage/40 hover:border-teal transition relative group shrink-0" title="Click or paste image (Ctrl+V)">
+          ${pp.imageUrl
+            ? `<img src="${escapeHtml(pp.imageUrl)}" class="w-full h-full object-cover" alt="${escapeHtml(pp.name || 'Petpet')}" onerror="this.style.display='none';">`
+            : `<span class="absolute inset-0 flex items-center justify-center text-[#9DB8AF]"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21C12 21 4 14.5 4 9.5C4 6.5 6.2 4.5 9 4.5C10.5 4.5 11.5 5.3 12 6C12.5 5.3 13.5 4.5 15 4.5C17.8 4.5 20 6.5 20 9.5C20 14.5 12 21 12 21Z"/></svg></span>`}
+          <span class="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[9px] font-bold text-center leading-tight px-1">Click or paste<br>image (Ctrl+V)</span>
+        </button>
+        ${showSecond ? `
+        <button id="petpetpetImgBtn" type="button" class="w-20 h-20 rounded-2xl border border-[#E2E8E4] overflow-hidden bg-sage/40 hover:border-teal transition relative group shrink-0" title="Click or paste image (Ctrl+V)">
+          ${ppp.imageUrl
+            ? `<img src="${escapeHtml(ppp.imageUrl)}" class="w-full h-full object-cover" alt="${escapeHtml(ppp.name || 'Petpetpet')}" onerror="this.style.display='none';">`
+            : `<span class="absolute inset-0 flex items-center justify-center text-[#9DB8AF]"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21C12 21 4 14.5 4 9.5C4 6.5 6.2 4.5 9 4.5C10.5 4.5 11.5 5.3 12 6C12.5 5.3 13.5 4.5 15 4.5C17.8 4.5 20 6.5 20 9.5C20 14.5 12 21 12 21Z"/></svg></span>`}
+          <span class="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[9px] font-bold text-center leading-tight px-1">Click or paste<br>image (Ctrl+V)</span>
+        </button>` : ''}
+      </div>
       <p class="text-sm mt-2.5">
         <span id="petpetNameSpan" class="lookup-bold lookup-editable font-semibold" title="Click to edit name">${escapeHtml(pp.name || 'Petpet')}</span> the
-        <span id="petpetSpeciesSpan" class="lookup-bold lookup-editable font-semibold" title="Click to edit species">${escapeHtml(pp.species || 'Petpet')}</span>
+        <span id="petpetSpeciesSpan" class="lookup-bold lookup-editable font-semibold" title="Click to edit species">${escapeHtml(pp.species || 'Petpet')}</span>${showSecond
+          ? ` and its <span id="petpetpetNameSpan" class="lookup-bold lookup-editable font-semibold" title="Click to edit name">${escapeHtml(ppp.name || 'Petpetpet')}</span>`
+          : ''}
       </p>
     `;
 
@@ -6928,8 +7045,8 @@
       if (!isUnlocked) return; // view-only while locked: no pasting/uploading a new petpet image
       // clicking arms this button to accept the very next clipboard paste
       // (Ctrl+V / Cmd+V) anywhere on the page — click again to cancel
-      if (petpetPasteArmed) { disarmPetpetPaste(); return; }
-      armPetpetPaste();
+      if (petpetPasteArmed === 'petpet') { disarmPetpetPaste(); return; }
+      armPetpetPaste('petpet');
     });
     enableInlineEdit(document.getElementById('petpetNameSpan'), {
       getValue: () => pp.name || 'Petpet',
@@ -6951,6 +7068,27 @@
         renderPetpetZone();
       }
     });
+
+    if (showSecond) {
+      const pppBtn = document.getElementById('petpetpetImgBtn');
+      if (pppBtn) {
+        pppBtn.addEventListener('click', () => {
+          if (!isUnlocked) return; // view-only while locked
+          if (petpetPasteArmed === 'petpetpet') { disarmPetpetPaste(); return; }
+          armPetpetPaste('petpetpet');
+        });
+      }
+      enableInlineEdit(document.getElementById('petpetpetNameSpan'), {
+        getValue: () => ppp.name || 'Petpetpet',
+        onSave: (val) => {
+          ensureCurrentLookup();
+          currentLookup.petpet.petpetpet.name = val || 'Petpetpet';
+          persistLookup();
+          showSaveToast();
+          renderPetpetZone();
+        }
+      });
+    }
   }
 
   // ---- description zone (rich text) ----
@@ -7823,6 +7961,7 @@
     currentLookup = {
       theme: Object.assign({}, DEFAULT_LOOKUP_THEME, (stored && stored.theme && typeof stored.theme === 'object') ? stored.theme : {}),
       petpet: Object.assign({ name: 'Petpet', color: '', species: '', imageUrl: '' }, (stored && stored.petpet && typeof stored.petpet === 'object') ? stored.petpet : {}),
+      flavor: Object.assign({ likes: '', greeting: '' }, (stored && stored.flavor && typeof stored.flavor === 'object') ? stored.flavor : {}),
       description: (stored && typeof stored.description === 'string') ? stored.description : '',
       mediaUrl: (stored && typeof stored.mediaUrl === 'string') ? stored.mediaUrl : '',
       activeMediaId: (stored && typeof stored.activeMediaId === 'string') ? stored.activeMediaId : ''
@@ -7858,6 +7997,19 @@
       { name: 'Petpet', color: '', species: '', imageUrl: '' },
       (currentLookup.petpet && typeof currentLookup.petpet === 'object') ? currentLookup.petpet : {}
     );
+    // "petpetpet" — the optional second, smaller pet shown next to the
+    // petpet (toggled on from the Customize lookup drawer).
+    currentLookup.petpet.petpetpet = Object.assign(
+      { enabled: false, name: 'Petpetpet', imageUrl: '' },
+      (currentLookup.petpet.petpetpet && typeof currentLookup.petpet.petpetpet === 'object') ? currentLookup.petpet.petpetpet : {}
+    );
+    // Editable "likes"/"would greet" text for the statistics panel. Empty
+    // string means "not customized yet" — renderStatsPanel falls back to
+    // the deterministic placeholder phrase for this pet in that case.
+    currentLookup.flavor = Object.assign(
+      { likes: '', greeting: '' },
+      (currentLookup.flavor && typeof currentLookup.flavor === 'object') ? currentLookup.flavor : {}
+    );
     if (typeof currentLookup.description !== 'string') currentLookup.description = '';
     if (typeof currentLookup.mediaUrl !== 'string') currentLookup.mediaUrl = '';
     if (typeof currentLookup.activeMediaId !== 'string') currentLookup.activeMediaId = '';
@@ -7891,12 +8043,234 @@
       });
     });
   }
+  // ---- master lookup CSS template (global — shared across every pet/device) ----
+  // The actual Neopets pet-lookup CSS, with {{token}} placeholders instead of
+  // hardcoded colors/name. "Copy lookup CSS" fills these in with the current
+  // pet's theme + name; "Edit master CSS" lets the placeholders and every
+  // other line be rewritten, and that edit applies globally from then on.
+  const DEFAULT_LOOKUP_CSS_TEMPLATE = `<div id="desc">[ <a href="myaccount.phtml">esc</a> ]<br><br></img><p>
+</div>
+<style />
+#desc{margin-top: -45px!Important}
+.pet_image {
+	background-image: url("//pets.neopets.com/cpn/{{petName}}/1/5.png") !important;
+	width: 500px !important;
+	height: 500px !important;
+	border: none !important;
+	margin: 0 0 20px 0 !important;
+margin-top: -65px!important
+}
+body{background-color:{{pageBg}};}
+#header
+{width:1px !important;
+visibility:hidden}
+#footer, .sidebar, #ban, #rating_ballot img, #rating_ballot, .contentModuleContent tr td img {display:none;}
+.contentModuleContent div img {display:inline}
+.contentModuleContent tr td
+{padding: 16px;
+padding-bottom: 32px!important
+}
+.contentModuleContent 
+{padding-top: 70px!important;
+padding-bottom: 25px!Important}
+#main {
+border-right: 15px solid rgba({{borderColorRgb}}, .7);
+border-left:15px solid rgba({{borderColorRgb}}, .7);
+background-color: #FFFFFF; 
+width:800px;
+padding-top: 30px}
+#content {width:800px; background-color:#FFFFFF;}
+#main td, #main body,td,p,a,font
+{font-size: 7.5pt;
+font-weight: normal;
+text-align:center;
+font-family: verdana;
+color: #464646;} 
+#main u,i
+{color: {{titleAccent}}}
+#main a
+{color: {{linkColor}};
+font-size: 9px;
+font-family: trebuchet ms;
+letter-spacing: -0.1pt;
+text-transform: uppercase;
+font-weight: bold;}
+#content a:hover, a:hover b
+{color: {{linkHover}};
+font-size: 9px;
+font-family: trebuchet ms;
+text-transform: uppercase;
+font-weight: bold;
+letter-spacing: -0.1pt;
+cursor: crosshair;}
+#main a:hover, #main a:hover b
+{color: {{linkHover}};
+font-size: 9px;
+font-family: trebuchet ms;
+text-transform: uppercase;
+font-weight: bold;}
+ 
+#main a:hover img, div a img:hover
+{opacity:0.6;
+filter:alpha(opacity=60);}
+#main B 
+{color: {{boldText}};
+font-size: 9px;
+font-family: trebuchet ms;
+text-transform: uppercase;
+}
+.contentModuleHeader, .contentModuleHeaderAlt
+{background:{{headerBg}}; text-align:center;
+border-top-width:1px;
+border-top-style: solid;
+border-top-color: #000000;
+border-bottom-width:5px;
+border-bottom-style:solid;
+border-bottom-color:{{headerAccent}};
+}
+#content .contentModuleHeader,
+#content .contentModuleHeaderAlt
+{
+font:10px verdana;
+letter-spacing:7pt;
+text-align:center;
+text-transform: lowercase;
+color: #ffffff }
+.contentModule{border:0px solid black}
+.contentModuleTable {
+background: none; text-align:center; 
+border:0px solid #FFFFFF;}
+</style>`;
+  const STORAGE_MASTER_CSS_TEMPLATE = 'neopets_showcase_master_lookup_css_v1';
+  const MASTER_CSS_SETTINGS_KEY = 'lookup_css_template';
+  // null = "no custom template saved yet, use the built-in default above".
+  let masterLookupCssTemplate = null;
+  try { masterLookupCssTemplate = localStorage.getItem(STORAGE_MASTER_CSS_TEMPLATE) || null; } catch (e) {}
+  function getMasterLookupCssTemplate() {
+    return (typeof masterLookupCssTemplate === 'string' && masterLookupCssTemplate) ? masterLookupCssTemplate : DEFAULT_LOOKUP_CSS_TEMPLATE;
+  }
+  // Saves globally — every pet's drawer, on every device, picks this up next
+  // time it fetches settings (see bootstrapFromSupabase's adminPinHash-style
+  // restore below), same as the admin PIN and other single shared settings.
+  function saveMasterLookupCssTemplate(value) {
+    masterLookupCssTemplate = value;
+    try { localStorage.setItem(STORAGE_MASTER_CSS_TEMPLATE, value); } catch (e) {}
+    sbSaveSetting(MASTER_CSS_SETTINGS_KEY, value);
+  }
+  // Fills a template's {{token}} placeholders with this pet's chosen theme
+  // colors + name. Unknown tokens are left untouched rather than silently
+  // dropped, so a typo in a hand-edited template is easy to spot.
+  function fillLookupCssTemplate(template, theme, petName) {
+    const t = Object.assign({}, DEFAULT_LOOKUP_THEME, theme || {});
+    const rgb = hexToRgb(t.borderColor);
+    const tokens = {
+      petName: encodeURIComponent((petName || '').trim()),
+      pageBg: t.pageBg,
+      borderColor: t.borderColor,
+      borderColorRgb: `${rgb.r}, ${rgb.g}, ${rgb.b}`,
+      headerBg: t.headerBg,
+      headerAccent: t.headerAccent,
+      boldText: t.boldText,
+      linkColor: t.linkColor,
+      linkHover: t.linkHover,
+      titleAccent: t.titleAccent
+    };
+    return String(template || '').replace(/\{\{(\w+)\}\}/g, (m, key) => (key in tokens) ? tokens[key] : m);
+  }
+  if (copyLookupCssBtn) {
+    copyLookupCssBtn.addEventListener('click', async () => {
+      try {
+        ensureCurrentLookup();
+        const css = fillLookupCssTemplate(getMasterLookupCssTemplate(), currentLookup.theme, safeDetailName());
+        await navigator.clipboard.writeText(css);
+        showSaveToast('Lookup CSS copied!');
+      } catch (e) {
+        console.error('Copy lookup CSS error:', e);
+        showSaveToast("Couldn't copy — try again");
+      }
+    });
+  }
+
+  // ---- master CSS editor modal ----
+  const masterCssModal = document.getElementById('masterCssModal');
+  const masterCssTextarea = document.getElementById('masterCssTextarea');
+  const masterCssResetBtn = document.getElementById('masterCssResetBtn');
+  const masterCssCancelBtn = document.getElementById('masterCssCancelBtn');
+  const masterCssSaveBtn = document.getElementById('masterCssSaveBtn');
+  const editMasterCssBtn = document.getElementById('editMasterCssBtn');
+  function openMasterCssEditor() {
+    masterCssTextarea.value = getMasterLookupCssTemplate();
+    showModalEl(masterCssModal);
+    setTimeout(() => masterCssTextarea.focus(), 10);
+  }
+  function closeMasterCssEditor() { hideModalEl(masterCssModal); }
+  if (editMasterCssBtn) {
+    editMasterCssBtn.addEventListener('click', async () => {
+      if (!isUnlocked) { await promptEnterPin(); return; } // locked: read-only, same rule as the color swatches
+      openMasterCssEditor();
+    });
+  }
+  if (masterCssCancelBtn) masterCssCancelBtn.addEventListener('click', closeMasterCssEditor);
+  if (masterCssModal) {
+    masterCssModal.addEventListener('click', (e) => { if (e.target === masterCssModal) closeMasterCssEditor(); });
+  }
+  if (masterCssResetBtn) {
+    masterCssResetBtn.addEventListener('click', async () => {
+      const ok = await appConfirm('Reset the master lookup CSS template back to the built-in default? This applies to every pet.', { title: 'Reset master CSS', okText: 'Reset' });
+      if (!ok) return;
+      masterCssTextarea.value = DEFAULT_LOOKUP_CSS_TEMPLATE;
+    });
+  }
+  if (masterCssSaveBtn) {
+    masterCssSaveBtn.addEventListener('click', () => {
+      const value = masterCssTextarea.value;
+      saveMasterLookupCssTemplate(value === DEFAULT_LOOKUP_CSS_TEMPLATE ? null : value);
+      closeMasterCssEditor();
+      showSaveToast('Master lookup CSS saved — applies to every pet');
+    });
+  }
+
+  // ---- "Show petpetpet" toggle ----
+  function renderPetpetpetToggle() {
+    ensureCurrentLookup();
+    if (!petpetpetToggleBtn) return;
+    const on = !!currentLookup.petpet.petpetpet.enabled;
+    const knob = petpetpetToggleBtn.querySelector('span');
+    petpetpetToggleBtn.setAttribute('aria-checked', on ? 'true' : 'false');
+    petpetpetToggleBtn.classList.toggle('bg-teal', on);
+    petpetpetToggleBtn.classList.toggle('bg-[#E2E8E4]', !on);
+    if (knob) knob.classList.toggle('translate-x-4', on);
+  }
+  if (petpetpetToggleBtn) {
+    petpetpetToggleBtn.addEventListener('click', async () => {
+      if (!isUnlocked) { await promptEnterPin(); return; } // locked: read-only, same rule as the color swatches
+      ensureCurrentLookup();
+      currentLookup.petpet.petpetpet.enabled = !currentLookup.petpet.petpetpet.enabled;
+      renderPetpetpetToggle();
+      persistLookup();
+      renderPetpetZone();
+      showSaveToast();
+    });
+  }
+
+  // Edit master CSS and the "Show petpetpet" toggle are edit-only controls —
+  // hidden while locked, same as Add Pet / Edit Tags elsewhere in the app.
+  // Copy lookup CSS stays visible/usable while locked since copying is a
+  // read-only action, not an edit.
+  const petpetpetToggleRow = document.getElementById('petpetpetToggleRow');
+  function applyCustomizeDrawerLockUI() {
+    if (editMasterCssBtn) editMasterCssBtn.classList.toggle('hidden', !isUnlocked);
+    if (petpetpetToggleRow) petpetpetToggleRow.classList.toggle('hidden', !isUnlocked);
+  }
+
   // the button toggles the drawer, and always succeeds even if lookup data
   // hasn't finished loading yet — it self-heals via ensureCurrentLookup()
   function openCustomizeDrawer() {
     if (!customizeDrawer.classList.contains('hidden')) { closeCustomizeDrawer(); return; }
     ensureCurrentLookup();
     renderSwatchList();
+    renderPetpetpetToggle();
+    applyCustomizeDrawerLockUI();
     customizeDrawer.classList.remove('hidden');
     // double rAF so the browser paints the un-hidden (translate-x-full) state
     // first, guaranteeing the transform transition actually animates in
@@ -8348,7 +8722,9 @@
       // depending on lock state, so they need a fresh render on toggle
       safeCall(renderDescriptionZone);
       safeCall(renderPetpetZone);
+      safeCall(renderStatsPanel); // the likes/greeting inline-edit spans also depend on lock state
     }
+    safeCall(applyCustomizeDrawerLockUI); // Edit master CSS / Show petpetpet are edit-only controls
   }
   async function promptCreatePin() {
     const val = await appPrompt('Create a 4-digit PIN to protect editing on this showcase.', {
@@ -8777,6 +9153,13 @@
       if (typeof remoteSettings.adminPinHash === 'string' && remoteSettings.adminPinHash) {
         adminPinHash = remoteSettings.adminPinHash;
       }
+      // Master lookup CSS template — shared globally across every pet's
+      // "Copy lookup CSS" button, same simple last-write-wins rule as the
+      // admin PIN above (there's only ever one of these, not one per pet).
+      if (typeof remoteSettings[MASTER_CSS_SETTINGS_KEY] === 'string' && remoteSettings[MASTER_CSS_SETTINGS_KEY]) {
+        masterLookupCssTemplate = remoteSettings[MASTER_CSS_SETTINGS_KEY];
+        try { localStorage.setItem(STORAGE_MASTER_CSS_TEMPLATE, masterLookupCssTemplate); } catch (e) {}
+      }
       // 'site_password_hash' is the current key; 'sitePasswordHash' is read as a
       // fallback so galleries set up before this rename still unlock correctly.
       const remoteSitePwHash = remoteSettings.site_password_hash || remoteSettings.sitePasswordHash;
@@ -8849,6 +9232,7 @@
           idbSetLookup(key, {
             theme: remote.theme,
             petpet: remote.petpet,
+            flavor: remote.flavor,
             description: remote.description,
             // mediaUrl is a legacy single-URL field, never part of the
             // synced payload (see buildSyncedLookupEntry) — preserve
@@ -8876,20 +9260,39 @@
       if (!fetchFailed) {
         for (const rec of localRecords) {
           const petpetUrl = rec.petpet && rec.petpet.imageUrl;
-          if (!petpetUrl || !petpetUrl.startsWith('data:')) continue;
-          try {
-            const file = dataUrlToFile(petpetUrl, `${genId()}.png`);
-            const publicUrl = await sbUploadAsset(file, `petpet-images/${encodeURIComponent(getMediaKey(rec.name))}`);
-            if (!publicUrl) continue;
-            rec.petpet.imageUrl = publicUrl;
-            await idbSetLookup(rec.name, rec);
-            syncedLookups[rec.name] = buildSyncedLookupEntry(rec);
-            // Live-update the open pet's petpet zone too, if it's this one.
-            if (currentDetailPetName === rec.name && currentLookup) {
-              currentLookup.petpet.imageUrl = publicUrl;
-              safeCall(renderPetpetZone);
-            }
-          } catch (e) { console.error('Background retry-upload failed for a petpet image — will try again next time:', e); }
+          if (petpetUrl && petpetUrl.startsWith('data:')) {
+            try {
+              const file = dataUrlToFile(petpetUrl, `${genId()}.png`);
+              const publicUrl = await sbUploadAsset(file, `petpet-images/${encodeURIComponent(getMediaKey(rec.name))}`);
+              if (publicUrl) {
+                rec.petpet.imageUrl = publicUrl;
+                await idbSetLookup(rec.name, rec);
+                syncedLookups[rec.name] = buildSyncedLookupEntry(rec);
+                // Live-update the open pet's petpet zone too, if it's this one.
+                if (currentDetailPetName === rec.name && currentLookup) {
+                  currentLookup.petpet.imageUrl = publicUrl;
+                  safeCall(renderPetpetZone);
+                }
+              }
+            } catch (e) { console.error('Background retry-upload failed for a petpet image — will try again next time:', e); }
+          }
+          // Same retry pass for the optional second "petpetpet" image.
+          const petpetpetUrl = rec.petpet && rec.petpet.petpetpet && rec.petpet.petpetpet.imageUrl;
+          if (petpetpetUrl && petpetpetUrl.startsWith('data:')) {
+            try {
+              const file2 = dataUrlToFile(petpetpetUrl, `${genId()}.png`);
+              const publicUrl2 = await sbUploadAsset(file2, `petpetpet-images/${encodeURIComponent(getMediaKey(rec.name))}`);
+              if (publicUrl2) {
+                rec.petpet.petpetpet.imageUrl = publicUrl2;
+                await idbSetLookup(rec.name, rec);
+                syncedLookups[rec.name] = buildSyncedLookupEntry(rec);
+                if (currentDetailPetName === rec.name && currentLookup) {
+                  currentLookup.petpet.petpetpet.imageUrl = publicUrl2;
+                  safeCall(renderPetpetZone);
+                }
+              }
+            } catch (e) { console.error('Background retry-upload failed for a petpetpet image — will try again next time:', e); }
+          }
         }
       }
     } catch (e) {
