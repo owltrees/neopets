@@ -355,6 +355,13 @@
     --lk-link: #454545;
     --lk-link-hover: #616161;
     --lk-title-accent: #8B5CF6;
+    --lk-body-text: #000000;
+    --lkh-bg: #F2F2F3;
+    --lkh-content-bg: #FFFFFF;
+    --lkh-border: #D8D8DC;
+    --lkh-header-bg: #FFC50B;
+    --lkh-header-label-color: #222222;
+    --lkh-body-text: #000000;
   }
   .lookup-page { background: var(--lk-bg); transition: background .15s ease; }
   .lookup-border-x {
@@ -380,7 +387,8 @@
     border-right: 15px solid var(--lk-border);
     transition: border-color .15s ease;
   }
-  .lookup-section-header { background: var(--lk-header-bg); border-top: 1px solid #000000; border-bottom: 5px solid var(--lk-accent); color: #fff; letter-spacing: 0.3em; text-transform: lowercase; text-align: center; transition: background .15s ease, border-color .15s ease; }
+  #lookupInner { color: var(--lk-body-text, #000000); transition: color .15s ease; }
+  .lookup-section-header { background: var(--lk-header-bg); border-top: var(--lk-header-border-top, 1px solid #000000); border-bottom: 5px solid var(--lk-accent); color: var(--lk-header-label-color, #fff); letter-spacing: 0.3em; text-transform: lowercase; text-align: center; transition: background .15s ease, border-color .15s ease, color .15s ease; }
   .lookup-bold { color: var(--lk-bold); font-weight: 700; }
   .lookup-link { color: var(--lk-link); cursor: pointer; transition: color .15s ease; text-decoration: none; }
   .lookup-link:hover { color: var(--lk-link-hover); }
@@ -398,15 +406,67 @@
   .lookup-swatch-btn:hover { transform: scale(1.06); }
   .desc-placeholder-active { color: #B9C7C2; }
   .desc-editable:focus { outline: none; }
-  /* description box is seamless (no border, no toolbar) until a descendant
+  /* description box is seamless (no border, no toolbar, transparent bg so it
+     always matches the surrounding content background) until a descendant
      gets focus — clicking a toolbar button keeps the editable div focused
      (see mousedown preventDefault in JS), so the box stays "open" while formatting */
-  #descriptionBox { border: 1px solid transparent; }
+  #descriptionBox { border: 1px solid transparent; background: transparent; color: inherit; }
   #descriptionBox:focus-within { border-color: #E2E8E4; box-shadow: 0 0 0 3px rgba(21,184,176,0.12); }
   .desc-toolbar-row { display: none; }
   #descriptionBox:focus-within .desc-toolbar-row { display: flex; }
   .desc-editable img { display: block; max-width: 100%; height: auto; object-fit: contain; margin: 8px auto; resize: none; }
   .lookup-fade { transition: opacity .25s ease; }
+
+  /* ---------- hero image lookup layout variant ---------- */
+  #lookupPage.hero-active { background: var(--lkh-bg) !important; padding-top: 0 !important; transition: background .15s ease; }
+  /* Frame itself shrinks by exactly the -150px the media stage lost (500px
+     classic -> 350px hero): content is 350 + 8 gap + 300 (same stats-column
+     width as Theme 1) = 658px, plus 8px padding + 3px border on each side
+     = 680px total. Capping max-width here (instead of stretching the grid
+     to fill the classic 880px frame) is what keeps the stats column the
+     same width it is in Theme 1 with no leftover space anywhere. */
+  #lookupInner.hero-active { max-width: 680px; padding: 8px; border-left: 3px solid var(--lkh-border) !important; border-right: 3px solid var(--lkh-border) !important; background: var(--lkh-content-bg) !important; color: var(--lkh-body-text, #000000) !important; transition: border-color .15s ease, background .15s ease, color .15s ease; }
+  #lookupInner.hero-active h2 { color: var(--lkh-body-text, #000000) !important; }
+  #lookupInner.hero-active .lookup-bold,
+  #lookupInner.hero-active .lookup-link,
+  #lookupInner.hero-active .lookup-link-static { color: var(--lkh-body-text, #000000) !important; opacity: .8; }
+  #lookupInner.hero-active .lookup-link:hover { opacity: 1; }
+  #lookupInner.hero-active .border-dashed,
+  #lookupInner.hero-active .border-t { border-color: var(--lkh-border) !important; }
+  .lookup-section-header.hero-active-header { border-top: none !important; border-bottom: none !important; background: var(--lkh-header-bg) !important; color: var(--lkh-header-label-color) !important; }
+  #lookupInner.hero-active #detailMediaStage { width: 350px !important; height: 350px !important; border: none !important; }
+  #lookupInner.hero-active #mediaStageWrap { background: var(--lkh-content-bg) !important; }
+  /* hero image sits flush with the frame's left/right border (and its very
+     top) — cancels out the frame's own 8px padding on those sides */
+  #heroImageZone { margin: -8px -8px 0 -8px; }
+  /* everything below the hero image hugs the content border with only the
+     frame's own 8px of padding — the classic layout's roomier px-3/sm:px-6
+     padding is zeroed out here so it doesn't stack on top of that */
+  #lookupInner.hero-active #detailTitleBlock,
+  #lookupInner.hero-active #lookupGridRow,
+  #lookupInner.hero-active #descriptionInner { padding-left: 0 !important; padding-right: 0 !important; }
+  @media (min-width: 1024px) {
+    #lookupInner.hero-active #lookupGridRow { grid-template-columns: 350px 300px !important; }
+    #lookupInner.hero-active #neopetColumn { width: 350px !important; }
+  }
+  #detailTopBar.hero-floating { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 45; width: min(680px, calc(100% - 2rem)); margin-bottom: 0 !important; }
+  #heroImageZone { width: calc(100% + 16px); position: relative; overflow: hidden; cursor: pointer; }
+  #heroImageZone img { display: block; width: 100%; height: auto; }
+  #heroImageZone .hero-empty-state { min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 1.5px dashed var(--lkh-border); color: #7A7A82; text-align: center; }
+  #heroImageZone .hero-upload-link { color: #1c1c1c; font-weight: 700; text-decoration: underline; cursor: pointer; }
+  #heroImageZone .hero-image-overlay { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 8px; opacity: 0; transition: opacity .15s ease; }
+  #heroImageZone:hover .hero-image-overlay { opacity: 1; }
+  #heroImageZone.hero-paste-armed .hero-image-overlay,
+  #heroImageZone.hero-paste-armed .hero-empty-state { opacity: 1; outline: 2px solid #15B8B0; outline-offset: -2px; }
+  .hero-overlay-action { color: #ffffff; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; padding: 6px 12px; border-radius: 999px; background: rgba(0,0,0,0.55); transition: background .12s ease; }
+  .hero-overlay-action:hover { background: rgba(0,0,0,0.75); }
+  /* layout tab switch, and the smaller Light/Dark-mode + Black/White segmented
+     controls in the drawer — same visual language, different size */
+  .layout-tab-btn { flex: 1; text-align: center; font-size: 13px; font-weight: 700; padding: 8px 0; border-radius: 10px; cursor: pointer; transition: background .12s ease, color .12s ease; color: #6E8880; }
+  .layout-tab-btn.active { background: #fff; color: #1c1c1c; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+  .mini-tab-btn { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 7px; cursor: pointer; color: #6E8880; transition: background .12s ease, color .12s ease; }
+  .mini-tab-btn.active { background: #fff; color: #1c1c1c; box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
+  .mini-tab-group { display: inline-flex; align-items: center; gap: 2px; background: #F3F5F4; border-radius: 9px; padding: 2px; }
 
   /* admin lock: view-only showcase mode — editor & roster-management controls hide/disable */
   body.admin-locked [data-menu-btn] { display: none !important; }
@@ -422,6 +482,9 @@
   /* Customize Lookup stays visible while locked (read-only swatch preview);
      only the destructive "Reset colors to default" action is hidden. */
   body.admin-locked #resetThemeBtn { display: none !important; }
+  body.admin-locked #resetHeroThemeBtn { display: none !important; }
+  body.admin-locked #heroImageZone .hero-image-overlay,
+  body.admin-locked #heroImageZone .hero-upload-link { display: none !important; }
   /* Bio/description is read-only while locked: no toolbar, no edit outline */
   body.admin-locked .desc-toolbar-row { display: none !important; }
   body.admin-locked .desc-editable { cursor: default !important; }
@@ -1337,7 +1400,7 @@
   <div id="lookupPage" class="lookup-page min-h-screen py-8 px-2 sm:px-4">
     <div class="max-w-[880px] mx-auto">
 
-      <div class="w-full mb-10 bg-white/50 backdrop-blur-[20px] backdrop-saturate-[180%] border border-white/60 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] px-6 py-3.5 flex items-center justify-between">
+      <div id="detailTopBar" class="w-full mb-10 bg-white/50 backdrop-blur-[20px] backdrop-saturate-[180%] border border-white/60 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] px-6 py-3.5 flex items-center justify-between">
         <button id="detailBackBtn" type="button" class="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 font-medium text-sm transition-colors">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
           Back
@@ -1353,34 +1416,37 @@
           <p class="text-sm font-semibold text-[#6E8880]">Loading lookup...</p>
         </div>
         <div id="lookupInner" class="lookup-border-x bg-white mx-auto lookup-fade">
-        <div class="pt-8 pb-5 px-3 sm:px-6">
-          <h2 class="text-center text-[22px] sm:text-[30px] font-extrabold text-[#1c1c1c] leading-tight">
+        <div id="heroImageZone" class="hidden"></div>
+        <input id="heroImageFileInput" type="file" accept="image/*" class="hidden">
+
+        <div id="detailTitleBlock" class="pt-8 pb-5 px-3 sm:px-6">
+          <h2 class="text-center text-[22px] sm:text-[30px] font-extrabold leading-tight">
             <span id="detailPetNameText"></span> the
             <span id="detailPetColor" class="lookup-title-accent lookup-editable cursor-pointer" title="Click to edit color"></span>
             <span id="detailPetSpecies" class="lookup-editable cursor-pointer" title="Click to edit species"></span>
           </h2>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-[500px_300px] justify-center gap-x-[8px] px-3 sm:px-6 lg:px-0">
-          <!-- LEFT: neopet (fixed 500x500 stage) -->
-          <div class="lg:w-[500px]">
-            <div class="lookup-section-header h-[35px] flex items-center justify-center text-xs font-normal">n e o p e t</div>
-            <div class="flex justify-center py-6 bg-white">
+        <div id="lookupGridRow" class="grid grid-cols-1 lg:grid-cols-[500px_300px] justify-center gap-x-[8px] px-3 sm:px-6 lg:px-0">
+          <!-- LEFT: neopet (fixed 500x500 stage, 300x300 in hero layout) -->
+          <div id="neopetColumn" class="lg:w-[500px]">
+            <div id="neopetSectionHeader" class="lookup-section-header h-[35px] flex items-center justify-center text-xs font-normal">n e o p e t</div>
+            <div id="mediaStageWrap" class="flex justify-center py-6 bg-white">
               <div id="detailMediaStage" class="media-stage-group w-[500px] h-[500px] max-w-full border border-[#D1D1D0] relative overflow-hidden flex items-center justify-center"></div>
             </div>
             <div id="petpetZone" class="text-center pb-8"></div>
           </div>
 
           <!-- RIGHT: statistics (~300px) -->
-          <div class="lg:w-[300px]">
-            <div class="lookup-section-header h-[35px] flex items-center justify-center text-xs font-normal">s t a t i s t i c s</div>
+          <div id="statsColumn" class="lg:w-[300px]">
+            <div id="statsSectionHeader" class="lookup-section-header h-[35px] flex items-center justify-center text-xs font-normal">s t a t i s t i c s</div>
             <div id="statsPanel" class="py-6 px-3 text-center text-[13px] leading-relaxed"></div>
           </div>
         </div>
 
-        <div class="lg:max-w-[808px] lg:mx-auto">
-          <div class="lookup-section-header h-[35px] flex items-center justify-center text-xs font-normal">d e s c r i p t i o n</div>
-          <div class="max-w-[800px] mx-auto px-3 sm:px-6 py-4">
+        <div id="descriptionSection" class="lg:max-w-[808px] lg:mx-auto">
+          <div id="descSectionHeader" class="lookup-section-header h-[35px] flex items-center justify-center text-xs font-normal">d e s c r i p t i o n</div>
+          <div class="max-w-[800px] mx-auto px-3 sm:px-6 py-4" id="descriptionInner">
             <div id="descriptionZone"></div>
           </div>
         </div>
@@ -1402,11 +1468,68 @@
     </div>
     <div class="flex-1 overflow-y-auto">
       <p class="px-5 pt-4 text-xs text-[#8AA39A] leading-relaxed">Colors are saved for this pet only. The page stays interactive while this panel is open.</p>
-      <div id="customizeSwatchList" class="p-5 pb-3 space-y-4"></div>
-      <div class="px-5 pb-5 text-left">
-        <button id="resetThemeBtn" type="button" class="text-xs font-bold text-rose-600 hover:text-rose-700 px-3 py-2 -mx-3 rounded-lg hover:bg-rose-50 transition">Reset colors to default</button>
+
+      <!-- LAYOUT VARIANT SWITCH — top hierarchy: everything below changes depending on which is selected -->
+      <div class="px-5 pt-4">
+        <div id="layoutTabRow" class="flex items-center gap-1 bg-[#F3F5F4] rounded-xl p-1">
+          <button id="layoutTabClassicBtn" type="button" class="layout-tab-btn active">Classic</button>
+          <button id="layoutTabHeroBtn" type="button" class="layout-tab-btn">Hero image</button>
+        </div>
       </div>
 
+      <!-- ===== CLASSIC LAYOUT OPTIONS ===== -->
+      <div id="classicThemeSection">
+        <div id="customizeSwatchList" class="p-5 pb-3 space-y-4"></div>
+        <div class="px-5 pb-5 text-left">
+          <button id="resetThemeBtn" type="button" class="text-xs font-bold text-rose-600 hover:text-rose-700 px-3 py-2 -mx-3 rounded-lg hover:bg-rose-50 transition">Reset colors to default</button>
+        </div>
+
+        <div id="headerStyleTogglesRow" class="px-5 py-4 border-t border-[#E2E8E4] space-y-3">
+          <p class="text-[11px] font-bold tracking-wide text-[#8AA39A] uppercase mb-1">Section headers</p>
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-semibold text-forest">Top border line</span>
+            <button id="headerBorderToggleBtn" type="button" role="switch" aria-checked="true" title="Show the thin black line above each section header" class="relative w-10 h-6 rounded-full bg-teal transition-colors shrink-0">
+              <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"></span>
+            </button>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-semibold text-forest">Header text</span>
+            <div id="headerModeGroup" class="mini-tab-group">
+              <button type="button" data-header-mode="black" class="mini-tab-btn">Black</button>
+              <button type="button" data-header-mode="white" class="mini-tab-btn">White</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== HERO IMAGE LAYOUT OPTIONS ===== -->
+      <div id="heroThemeSection" class="hidden">
+        <div id="heroSwatchList" class="p-5 pb-3 space-y-4"></div>
+        <div class="px-5 pb-5 text-left">
+          <button id="resetHeroThemeBtn" type="button" class="text-xs font-bold text-rose-600 hover:text-rose-700 px-3 py-2 -mx-3 rounded-lg hover:bg-rose-50 transition">Reset colors to default</button>
+        </div>
+
+        <div id="heroHeaderToggleRow" class="px-5 py-4 border-t border-[#E2E8E4] space-y-3">
+          <p class="text-[11px] font-bold tracking-wide text-[#8AA39A] uppercase mb-1">Text color</p>
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-semibold text-forest">Header text</span>
+            <div id="heroHeaderModeGroup" class="mini-tab-group">
+              <button type="button" data-header-mode="black" class="mini-tab-btn">Black</button>
+              <button type="button" data-header-mode="white" class="mini-tab-btn">White</button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-semibold text-forest">Body text</span>
+            <div id="heroBodyTextModeGroup" class="mini-tab-group">
+              <button type="button" data-body-mode="black" class="mini-tab-btn">Black</button>
+              <button type="button" data-body-mode="white" class="mini-tab-btn">White</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ===== GLOBAL — shared across both layouts ===== -->
       <div class="px-5 py-4 border-t border-[#E2E8E4] space-y-1">
         <p class="text-[11px] font-bold tracking-wide text-[#8AA39A] uppercase mb-1">Neopets CSS</p>
         <button id="copyLookupCssBtn" type="button" class="w-full flex items-center gap-3 rounded-xl px-2 py-2.5 -mx-2 hover:bg-sage/60 transition-colors text-left">
@@ -1885,7 +2008,9 @@
       <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{boldText}}</code>,
       <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{linkColor}}</code>,
       <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{linkHover}}</code>,
-      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{titleAccent}}</code> and
+      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{titleAccent}}</code>,
+      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{headerBorderTopCss}}</code>,
+      <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{headerLabelColor}}</code> and
       <code class="px-1 py-0.5 rounded bg-sage text-forest font-semibold">{{petName}}</code>
       as placeholders — each one is swapped for the real value when you copy.
     </p>
@@ -2079,8 +2204,15 @@
     const ppp = (snapshot.petpet && snapshot.petpet.petpetpet && typeof snapshot.petpet.petpetpet === 'object') ? snapshot.petpet.petpetpet : {};
     const pppImg = ppp.imageUrl;
     const flavor = (snapshot.flavor && typeof snapshot.flavor === 'object') ? snapshot.flavor : {};
+    const heroImg = snapshot.heroImage && snapshot.heroImage.url;
     return {
       theme: snapshot.theme || {},
+      heroTheme: snapshot.heroTheme || {}, // hero layout's independent color set — see DEFAULT_HERO_THEME
+      heroImage: {
+        // same data:-URL exclusion rule as every other image in this app —
+        // only a real uploaded URL is allowed to leave this device
+        url: (heroImg && !heroImg.startsWith('data:')) ? heroImg : ''
+      },
       petpet: {
         name: (snapshot.petpet && snapshot.petpet.name) || '',
         species: (snapshot.petpet && snapshot.petpet.species) || '',
@@ -6625,6 +6757,25 @@
   const resetThemeBtn = document.getElementById('resetThemeBtn');
   const copyLookupCssBtn = document.getElementById('copyLookupCssBtn');
   const petpetpetToggleBtn = document.getElementById('petpetpetToggleBtn');
+  const headerBorderToggleBtn = document.getElementById('headerBorderToggleBtn');
+  const headerModeGroup = document.getElementById('headerModeGroup');
+  // ---- hero image lookup layout variant: elements ----
+  const lookupPageEl = document.getElementById('lookupPage');
+  const detailTopBar = document.getElementById('detailTopBar');
+  const neopetSectionHeader = document.getElementById('neopetSectionHeader');
+  const statsSectionHeader = document.getElementById('statsSectionHeader');
+  const descSectionHeader = document.getElementById('descSectionHeader');
+  const heroImageZone = document.getElementById('heroImageZone');
+  const heroImageFileInput = document.getElementById('heroImageFileInput');
+  const layoutTabRow = document.getElementById('layoutTabRow');
+  const layoutTabClassicBtn = document.getElementById('layoutTabClassicBtn');
+  const layoutTabHeroBtn = document.getElementById('layoutTabHeroBtn');
+  const classicThemeSection = document.getElementById('classicThemeSection');
+  const heroThemeSection = document.getElementById('heroThemeSection');
+  const heroSwatchList = document.getElementById('heroSwatchList');
+  const resetHeroThemeBtn = document.getElementById('resetHeroThemeBtn');
+  const heroHeaderModeGroup = document.getElementById('heroHeaderModeGroup');
+  const heroBodyTextModeGroup = document.getElementById('heroBodyTextModeGroup');
 
   let currentDetailPetName = null;
   let currentDetailPet = null;
@@ -6640,7 +6791,10 @@
     boldText: '#454545',
     linkColor: '#454545',
     linkHover: '#616161',
-    titleAccent: '#8B5CF6'
+    titleAccent: '#8B5CF6',
+    headerBorderTop: true, // section header top border (the thin black line) — on by default
+    headerLabelDark: false, // header text: true = Black (#222), false = White — for the classic layout's default dark header bg
+    layout: 'classic' // 'classic' | 'hero' — which lookup layout variant this pet uses
   };
   const THEME_FIELDS = [
     { key: 'pageBg', label: 'Page background' },
@@ -6651,6 +6805,22 @@
     { key: 'linkColor', label: 'Link color' },
     { key: 'linkHover', label: 'Link hover color' },
     { key: 'titleAccent', label: 'Title accent color' }
+  ];
+  // ---- hero image layout: its own independent color set, starts fresh
+  // until the person picks colors for it, then persists like everything else ----
+  const DEFAULT_HERO_THEME = {
+    pageBg: '#F2F2F3',
+    contentBg: '#FFFFFF',
+    borderColor: '#D8D8DC',
+    headerBg: '#FFC50B',
+    headerLabelDark: true, // Light mode (dark text) — reads well on the yellow default header
+    bodyTextColor: '#000000'
+  };
+  const HERO_THEME_FIELDS = [
+    { key: 'pageBg', label: 'Page background' },
+    { key: 'contentBg', label: 'Content background' },
+    { key: 'borderColor', label: 'Content border color' },
+    { key: 'headerBg', label: 'Section header background' }
   ];
 
   function releaseDetailObjectUrl() {
@@ -6678,6 +6848,39 @@
     style.setProperty('--lk-link', theme.linkColor);
     style.setProperty('--lk-link-hover', theme.linkHover);
     style.setProperty('--lk-title-accent', theme.titleAccent);
+    style.setProperty('--lk-header-border-top', theme.headerBorderTop === false ? 'none' : '1px solid #000000');
+    style.setProperty('--lk-header-label-color', theme.headerLabelDark ? '#222222' : '#ffffff');
+    // classic body text is always black — no toggle for this layout, see hero's own bodyTextColor for the customizable version
+    style.setProperty('--lk-body-text', '#000000');
+  }
+
+  // Applies the hero layout's independent color set — same idea as
+  // applyLookupTheme but writes to the --lkh-* variables so both color sets
+  // can coexist and switching layouts is just a class toggle (applyLookupLayout).
+  function applyHeroLookupTheme(theme) {
+    const style = petDetailView.style;
+    style.setProperty('--lkh-bg', theme.pageBg);
+    style.setProperty('--lkh-content-bg', theme.contentBg);
+    style.setProperty('--lkh-border', theme.borderColor);
+    style.setProperty('--lkh-header-bg', theme.headerBg);
+    style.setProperty('--lkh-header-label-color', theme.headerLabelDark ? '#222222' : '#ffffff');
+    style.setProperty('--lkh-body-text', theme.bodyTextColor || '#000000');
+  }
+
+  // Switches which lookup layout variant is actually showing — toggles the
+  // hero-active classes that the CSS in <style> hooks into, and floats the
+  // Back/Customize glass bar over the hero image instead of sitting above
+  // the frame. Safe to call any time after currentLookup is loaded.
+  function applyLookupLayout() {
+    ensureCurrentLookup();
+    const isHero = currentLookup.theme.layout === 'hero';
+    if (lookupPageEl) lookupPageEl.classList.toggle('hero-active', isHero);
+    if (lookupInner) lookupInner.classList.toggle('hero-active', isHero);
+    if (detailTopBar) detailTopBar.classList.toggle('hero-floating', isHero);
+    [neopetSectionHeader, statsSectionHeader, descSectionHeader].forEach((el) => {
+      if (el) el.classList.toggle('hero-active-header', isHero);
+    });
+    if (heroImageZone) heroImageZone.classList.toggle('hidden', !isHero);
   }
 
   function persistLookup() {
@@ -6685,6 +6888,8 @@
     const name = currentDetailPetName;
     const snapshot = {
       theme: currentLookup.theme,
+      heroTheme: currentLookup.heroTheme,
+      heroImage: currentLookup.heroImage,
       petpet: currentLookup.petpet,
       flavor: currentLookup.flavor, // editable "likes"/"would greet" text — see PLACEHOLDER_LIKES/GREETINGS fallback in renderStatsPanel
       description: currentLookup.description,
@@ -6916,6 +7121,7 @@
   let petpetPasteArmed = null;
   function petpetPasteBtnId(target) { return target === 'petpetpet' ? 'petpetpetImgBtn' : 'petpetImgBtn'; }
   function armPetpetPaste(target) {
+    disarmHeroImagePaste(); // only one paste target can be armed at a time
     petpetPasteArmed = target;
     const btn = document.getElementById(petpetPasteBtnId(target));
     if (btn) {
@@ -7017,7 +7223,7 @@
     const showSecond = !!ppp.enabled;
     const nameUpper = safeDetailName().toUpperCase();
     petpetZone.innerHTML = `
-      <p class="text-sm text-[#333] mb-3"><span class="lookup-bold">${escapeHtml(nameUpper)}</span> has a Petpet!</p>
+      <p class="text-sm mb-3"><span class="lookup-bold">${escapeHtml(nameUpper)}</span> has a Petpet!</p>
       <div class="flex items-center justify-center gap-4">
         <button id="petpetImgBtn" type="button" class="w-20 h-20 rounded-2xl border border-[#E2E8E4] overflow-hidden bg-sage/40 hover:border-teal transition relative group shrink-0" title="Click or paste image (Ctrl+V)">
           ${pp.imageUrl
@@ -7089,6 +7295,177 @@
         }
       });
     }
+  }
+
+  // ---- hero image (hero layout variant) — upload, paste, and remove,
+  // with the old file cleaned up from Supabase Storage on replace/remove ----
+  let heroImagePasteArmed = false;
+  function armHeroImagePaste() {
+    disarmPetpetPaste(); // only one paste target can be armed at a time
+    heroImagePasteArmed = true;
+    if (heroImageZone) { heroImageZone.classList.add('hero-paste-armed'); heroImageZone.title = 'Paste now (Ctrl+V) — click again to cancel'; }
+  }
+  function disarmHeroImagePaste() {
+    heroImagePasteArmed = false;
+    if (heroImageZone) { heroImageZone.classList.remove('hero-paste-armed'); heroImageZone.title = ''; }
+  }
+  document.addEventListener('click', (e) => {
+    if (heroImagePasteArmed && heroImageZone && !heroImageZone.contains(e.target)) disarmHeroImagePaste();
+  });
+
+  // Removes a previously-uploaded hero image from Supabase Storage. No-op
+  // for local data: URLs (never made it to Storage) or if there's nothing
+  // to remove — same guard pattern as the petpet image retry-upload logic.
+  async function deleteHeroImageAsset(url) {
+    if (!url || url.startsWith('data:')) return;
+    const path = storagePathFromPublicUrl(url);
+    if (!path) return;
+    try { await sbDeleteAsset(path); } catch (e) { console.error('Hero image Storage delete error:', e); }
+  }
+
+  document.addEventListener('paste', async (e) => {
+    if (!heroImagePasteArmed || !currentLookup) return;
+    const clipboard = e.clipboardData || window.clipboardData;
+    if (!clipboard) return;
+    const petNameAtPaste = currentDetailPetName;
+    ensureCurrentLookup();
+    const previousUrl = currentLookup.heroImage.url;
+
+    const items = clipboard.items;
+    if (items) {
+      for (const item of items) {
+        if (item.type && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            try {
+              const dataUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (ev) => resolve(ev.target.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+              });
+              currentLookup.heroImage.url = dataUrl; // instant feedback
+              persistLookup();
+              renderHeroImageZone();
+              showSaveToast();
+              sbUploadAsset(file, `hero-images/${encodeURIComponent(getMediaKey(petNameAtPaste))}`)
+                .then((url) => {
+                  if (!url) return;
+                  if (currentDetailPetName === petNameAtPaste && currentLookup && currentLookup.heroImage.url === dataUrl) {
+                    currentLookup.heroImage.url = url;
+                    persistLookup();
+                    renderHeroImageZone();
+                    deleteHeroImageAsset(previousUrl);
+                  }
+                })
+                .catch((err) => console.error('Hero image Storage upload error:', err));
+            } catch (err) {
+              await appAlert('Could not read that image from the clipboard.', 'Paste failed');
+            }
+            disarmHeroImagePaste();
+            return;
+          }
+        }
+      }
+    }
+
+    const text = (clipboard.getData ? clipboard.getData('text') : '') || '';
+    const trimmed = text.trim();
+    if (trimmed) {
+      e.preventDefault();
+      currentLookup.heroImage.url = trimmed;
+      persistLookup();
+      renderHeroImageZone();
+      showSaveToast();
+      deleteHeroImageAsset(previousUrl);
+      disarmHeroImagePaste();
+    }
+  });
+
+  if (heroImageFileInput) {
+    heroImageFileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      heroImageFileInput.value = ''; // allow re-selecting the same file later
+      if (!file || !currentLookup) return;
+      const petNameAtUpload = currentDetailPetName;
+      const previousUrl = currentLookup.heroImage.url;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        ensureCurrentLookup();
+        currentLookup.heroImage.url = ev.target.result; // instant local preview
+        persistLookup();
+        renderHeroImageZone();
+        showSaveToast();
+        sbUploadAsset(file, `hero-images/${encodeURIComponent(getMediaKey(petNameAtUpload))}`)
+          .then((url) => {
+            if (!url) return;
+            if (currentDetailPetName === petNameAtUpload && currentLookup && currentLookup.heroImage.url === ev.target.result) {
+              currentLookup.heroImage.url = url;
+              persistLookup();
+              renderHeroImageZone();
+              deleteHeroImageAsset(previousUrl);
+            }
+          })
+          .catch((err) => console.error('Hero image Storage upload error:', err));
+      };
+      reader.onerror = () => console.error('Failed to read hero image file:', reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function renderHeroImageZone() {
+    ensureCurrentLookup();
+    if (!heroImageZone) return;
+    const url = currentLookup.heroImage.url;
+    heroImageZone.innerHTML = url
+      ? `
+        <img src="${escapeHtml(url)}" alt="Hero image" onerror="this.style.display='none';">
+        <div class="hero-image-overlay">
+          <span data-hero-action="replace" class="hero-overlay-action">Replace</span>
+          <span data-hero-action="remove" class="hero-overlay-action">Remove</span>
+        </div>
+      `
+      : `
+        <div class="hero-empty-state">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.75"/><path d="M21 16l-5.5-5.5a1.5 1.5 0 0 0-2.12 0L5 19"/></svg>
+          <span><span data-hero-action="upload" class="hero-upload-link">Upload a hero image</span> or paste one (Ctrl+V)</span>
+        </div>
+      `;
+
+  }
+
+  // Bound once (not per-render, since heroImageZone's innerHTML is replaced
+  // but the element itself persists across renders — re-binding here would
+  // stack duplicate listeners every time the pet's hero image changes).
+  if (heroImageZone) {
+    heroImageZone.addEventListener('click', (e) => {
+      if (!isUnlocked) return; // view-only while locked
+      const actionEl = e.target.closest('[data-hero-action]');
+      if (actionEl) {
+        e.stopPropagation();
+        const action = actionEl.dataset.heroAction;
+        if (action === 'upload' || action === 'replace') { heroImageFileInput.click(); return; }
+        if (action === 'remove') {
+          (async () => {
+            ensureCurrentLookup();
+            const ok = await appConfirm('Remove the hero image? This deletes it from storage too.', { title: 'Remove hero image', okText: 'Remove' });
+            if (!ok) return;
+            const previousUrl = currentLookup.heroImage.url;
+            currentLookup.heroImage.url = '';
+            persistLookup();
+            renderHeroImageZone();
+            showSaveToast();
+            deleteHeroImageAsset(previousUrl);
+          })();
+          return;
+        }
+      }
+      // clicking anywhere else on the zone arms the very next clipboard
+      // paste (Ctrl+V / Cmd+V) — click again to cancel, same pattern as petpet
+      if (heroImagePasteArmed) { disarmHeroImagePaste(); return; }
+      armHeroImagePaste();
+    });
   }
 
   // ---- description zone (rich text) ----
@@ -7194,7 +7571,7 @@
       // contenteditable outline, and no "click to add bio" placeholder —
       // a pet with no bio yet should just show blank, not an invitation to edit.
       descriptionZone.innerHTML = `
-        <div id="descriptionBox" class="relative rounded-xl bg-white">
+        <div id="descriptionBox" class="relative rounded-xl">
           <div class="desc-editable text-sm leading-relaxed text-center min-h-[70px] px-3.5 pb-3 pt-1">${saved}</div>
         </div>
       `;
@@ -7204,7 +7581,7 @@
     const showingPlaceholder = !saved;
 
     descriptionZone.innerHTML = `
-      <div id="descriptionBox" class="relative rounded-xl transition bg-white">
+      <div id="descriptionBox" class="relative rounded-xl transition">
         <div class="desc-toolbar-row items-center gap-1 px-2 pt-2 pb-1">
           <button type="button" data-cmd="bold" class="desc-toolbar-btn w-7 h-7 rounded-md border border-[#E2E8E4] hover:border-teal hover:text-tealdark transition flex items-center justify-center font-bold text-xs text-forest" title="Bold (Ctrl/Cmd+B)">B</button>
           <button type="button" data-cmd="italic" class="desc-toolbar-btn w-7 h-7 rounded-md border border-[#E2E8E4] hover:border-teal hover:text-tealdark transition flex items-center justify-center italic text-xs text-forest" title="Italic (Ctrl/Cmd+I)">I</button>
@@ -7938,11 +8315,13 @@
       if (petpetZone) petpetZone.innerHTML = '';
       if (descriptionZone) descriptionZone.innerHTML = '';
       if (detailMediaStage) detailMediaStage.innerHTML = '';
+      if (heroImageZone) heroImageZone.innerHTML = '';
     } catch (e) { console.error('Clear lookup content error:', e); }
   }
 
   async function enterPetDetail(name) {
     disarmPetpetPaste();
+    disarmHeroImagePaste();
     // 1) immediately hide/clear whatever pet was previously showing and show
     // a loading transition — this runs synchronously before any await below,
     // so there is no window where the old pet's media/stats remain visible
@@ -7960,6 +8339,8 @@
 
     currentLookup = {
       theme: Object.assign({}, DEFAULT_LOOKUP_THEME, (stored && stored.theme && typeof stored.theme === 'object') ? stored.theme : {}),
+      heroTheme: Object.assign({}, DEFAULT_HERO_THEME, (stored && stored.heroTheme && typeof stored.heroTheme === 'object') ? stored.heroTheme : {}),
+      heroImage: Object.assign({ url: '' }, (stored && stored.heroImage && typeof stored.heroImage === 'object') ? stored.heroImage : {}),
       petpet: Object.assign({ name: 'Petpet', color: '', species: '', imageUrl: '' }, (stored && stored.petpet && typeof stored.petpet === 'object') ? stored.petpet : {}),
       flavor: Object.assign({ likes: '', greeting: '' }, (stored && stored.flavor && typeof stored.flavor === 'object') ? stored.flavor : {}),
       description: (stored && typeof stored.description === 'string') ? stored.description : '',
@@ -7970,10 +8351,13 @@
 
     // each render step is independent so a single bad field can't blank the whole page
     safeCall(() => applyLookupTheme(currentLookup.theme));
+    safeCall(() => applyHeroLookupTheme(currentLookup.heroTheme));
+    safeCall(applyLookupLayout);
     safeCall(renderDetailHeader);
     safeCall(renderStatsPanel);
     safeCall(renderPetpetZone);
     safeCall(renderDescriptionZone);
+    safeCall(renderHeroImageZone);
     try { await renderDetailMedia(); } catch (e) { console.error('Media render error:', e); }
     if (currentDetailPetName !== normalizedName) return; // navigated away again while media was loading
 
@@ -7992,6 +8376,15 @@
     currentLookup.theme = Object.assign(
       {}, DEFAULT_LOOKUP_THEME,
       (currentLookup.theme && typeof currentLookup.theme === 'object') ? currentLookup.theme : {}
+    );
+    // Hero image layout's independent color set — see DEFAULT_HERO_THEME.
+    currentLookup.heroTheme = Object.assign(
+      {}, DEFAULT_HERO_THEME,
+      (currentLookup.heroTheme && typeof currentLookup.heroTheme === 'object') ? currentLookup.heroTheme : {}
+    );
+    currentLookup.heroImage = Object.assign(
+      { url: '' },
+      (currentLookup.heroImage && typeof currentLookup.heroImage === 'object') ? currentLookup.heroImage : {}
     );
     currentLookup.petpet = Object.assign(
       { name: 'Petpet', color: '', species: '', imageUrl: '' },
@@ -8038,6 +8431,34 @@
               applyLookupTheme(currentLookup.theme);
               persistLookup();
             } catch (e) { console.error('Theme swatch update error:', e); }
+          });
+        } catch (e) { console.error('Color picker open error:', e); }
+      });
+    });
+  }
+  // ---- hero image layout: its own color swatch list (independent set — see DEFAULT_HERO_THEME) ----
+  function renderHeroSwatchList() {
+    ensureCurrentLookup();
+    if (!heroSwatchList) return;
+    heroSwatchList.innerHTML = HERO_THEME_FIELDS.map(f => `
+      <div class="flex items-center gap-4">
+        <button type="button" data-hero-theme-key="${f.key}" class="lookup-swatch-btn w-9 h-9 rounded-full ring-1 ring-[#E2E8E4] shadow-sm shrink-0" style="background:${currentLookup.heroTheme[f.key]}"></button>
+        <span class="text-sm font-semibold text-forest">${f.label}</span>
+      </div>
+    `).join('');
+    heroSwatchList.querySelectorAll('[data-hero-theme-key]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!isUnlocked) { await promptEnterPin(); return; }
+        try {
+          ensureCurrentLookup();
+          const key = btn.dataset.heroThemeKey;
+          openColorPicker(btn, currentLookup.heroTheme[key], (hex) => {
+            try {
+              currentLookup.heroTheme[key] = hex;
+              btn.style.background = hex;
+              applyHeroLookupTheme(currentLookup.heroTheme);
+              persistLookup();
+            } catch (e) { console.error('Hero theme swatch update error:', e); }
           });
         } catch (e) { console.error('Color picker open error:', e); }
       });
@@ -8121,9 +8542,7 @@ text-transform: uppercase;
 }
 .contentModuleHeader, .contentModuleHeaderAlt
 {background:{{headerBg}}; text-align:center;
-border-top-width:1px;
-border-top-style: solid;
-border-top-color: #000000;
+{{headerBorderTopCss}}
 border-bottom-width:5px;
 border-bottom-style:solid;
 border-bottom-color:{{headerAccent}};
@@ -8135,7 +8554,7 @@ font:10px verdana;
 letter-spacing:7pt;
 text-align:center;
 text-transform: lowercase;
-color: #ffffff }
+color: {{headerLabelColor}} }
 .contentModule{border:0px solid black}
 .contentModuleTable {
 background: none; text-align:center; 
@@ -8173,7 +8592,11 @@ border:0px solid #FFFFFF;}
       boldText: t.boldText,
       linkColor: t.linkColor,
       linkHover: t.linkHover,
-      titleAccent: t.titleAccent
+      titleAccent: t.titleAccent,
+      headerBorderTopCss: t.headerBorderTop === false
+        ? 'border-top: none;'
+        : 'border-top-width:1px;\nborder-top-style: solid;\nborder-top-color: #000000;',
+      headerLabelColor: t.headerLabelDark ? '#222222' : '#ffffff'
     };
     return String(template || '').replace(/\{\{(\w+)\}\}/g, (m, key) => (key in tokens) ? tokens[key] : m);
   }
@@ -8253,14 +8676,129 @@ border:0px solid #FFFFFF;}
     });
   }
 
+  // ---- "Top border line" toggle + "Header text" Light/Dark-mode segmented
+  // control for section headers. headerLabelDark stays the same underlying
+  // field as before (true = dark #222 text) — only the UI is a segmented
+  // control now, labeled the way people actually read it: Black = dark #222
+  // text (for a light-colored header bg), White = white text (for a
+  // dark-colored header bg). Shared helper so classic + hero don't duplicate it. ----
+  function paintModeGroup(groupEl, activeMode) {
+    if (!groupEl) return;
+    groupEl.querySelectorAll('[data-header-mode], [data-body-mode]').forEach((btn) => {
+      const mode = btn.dataset.headerMode || btn.dataset.bodyMode;
+      btn.classList.toggle('active', mode === activeMode);
+    });
+  }
+  function renderHeaderStyleToggles() {
+    ensureCurrentLookup();
+    const theme = currentLookup.theme;
+    if (headerBorderToggleBtn) {
+      const on = theme.headerBorderTop !== false;
+      const knob = headerBorderToggleBtn.querySelector('span');
+      headerBorderToggleBtn.setAttribute('aria-checked', on ? 'true' : 'false');
+      headerBorderToggleBtn.classList.toggle('bg-teal', on);
+      headerBorderToggleBtn.classList.toggle('bg-[#E2E8E4]', !on);
+      if (knob) knob.classList.toggle('translate-x-4', on);
+    }
+    paintModeGroup(headerModeGroup, theme.headerLabelDark ? 'black' : 'white');
+  }
+  if (headerBorderToggleBtn) {
+    headerBorderToggleBtn.addEventListener('click', async () => {
+      if (!isUnlocked) { await promptEnterPin(); return; } // locked: read-only, same rule as the color swatches
+      ensureCurrentLookup();
+      currentLookup.theme.headerBorderTop = !(currentLookup.theme.headerBorderTop !== false);
+      applyLookupTheme(currentLookup.theme);
+      renderHeaderStyleToggles();
+      persistLookup();
+      showSaveToast();
+    });
+  }
+  if (headerModeGroup) {
+    headerModeGroup.querySelectorAll('[data-header-mode]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!isUnlocked) { await promptEnterPin(); return; }
+        ensureCurrentLookup();
+        currentLookup.theme.headerLabelDark = (btn.dataset.headerMode === 'black');
+        applyLookupTheme(currentLookup.theme);
+        renderHeaderStyleToggles();
+        persistLookup();
+        showSaveToast();
+      });
+    });
+  }
+
+  // ---- hero layout: same Black/White header-text control (no top-border
+  // toggle — the hero header never has one, by design) + its own Black/White
+  // body text control (classic's body text is always black — no toggle for it) ----
+  function renderHeroHeaderToggle() {
+    ensureCurrentLookup();
+    paintModeGroup(heroHeaderModeGroup, currentLookup.heroTheme.headerLabelDark ? 'black' : 'white');
+    paintModeGroup(heroBodyTextModeGroup, (currentLookup.heroTheme.bodyTextColor === '#ffffff') ? 'white' : 'black');
+  }
+  if (heroHeaderModeGroup) {
+    heroHeaderModeGroup.querySelectorAll('[data-header-mode]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!isUnlocked) { await promptEnterPin(); return; }
+        ensureCurrentLookup();
+        currentLookup.heroTheme.headerLabelDark = (btn.dataset.headerMode === 'black');
+        applyHeroLookupTheme(currentLookup.heroTheme);
+        renderHeroHeaderToggle();
+        persistLookup();
+        showSaveToast();
+      });
+    });
+  }
+  if (heroBodyTextModeGroup) {
+    heroBodyTextModeGroup.querySelectorAll('[data-body-mode]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!isUnlocked) { await promptEnterPin(); return; }
+        ensureCurrentLookup();
+        currentLookup.heroTheme.bodyTextColor = (btn.dataset.bodyMode === 'white') ? '#ffffff' : '#000000';
+        applyHeroLookupTheme(currentLookup.heroTheme);
+        renderHeroHeaderToggle();
+        persistLookup();
+        showSaveToast();
+      });
+    });
+  }
+
+  // ---- top-hierarchy layout switch: Classic vs Hero image ----
+  // Sections shown below the switch (color swatches, header toggles) change
+  // depending on which is selected; "Neopets CSS" + "Show petpetpet" stay
+  // put underneath either way — see the Global section in the drawer HTML.
+  function renderLayoutTabs() {
+    ensureCurrentLookup();
+    const isHero = currentLookup.theme.layout === 'hero';
+    if (layoutTabClassicBtn) layoutTabClassicBtn.classList.toggle('active', !isHero);
+    if (layoutTabHeroBtn) layoutTabHeroBtn.classList.toggle('active', isHero);
+    if (classicThemeSection) classicThemeSection.classList.toggle('hidden', isHero);
+    if (heroThemeSection) heroThemeSection.classList.toggle('hidden', !isHero);
+  }
+  async function setLookupLayout(layout) {
+    if (!isUnlocked) { await promptEnterPin(); return; }
+    ensureCurrentLookup();
+    if (currentLookup.theme.layout === layout) return;
+    currentLookup.theme.layout = layout;
+    applyLookupLayout();
+    renderLayoutTabs();
+    persistLookup();
+    showSaveToast();
+  }
+  if (layoutTabClassicBtn) layoutTabClassicBtn.addEventListener('click', () => setLookupLayout('classic'));
+  if (layoutTabHeroBtn) layoutTabHeroBtn.addEventListener('click', () => setLookupLayout('hero'));
+
   // Edit master CSS and the "Show petpetpet" toggle are edit-only controls —
   // hidden while locked, same as Add Pet / Edit Tags elsewhere in the app.
   // Copy lookup CSS stays visible/usable while locked since copying is a
   // read-only action, not an edit.
   const petpetpetToggleRow = document.getElementById('petpetpetToggleRow');
+  const headerStyleTogglesRow = document.getElementById('headerStyleTogglesRow');
+  const heroHeaderToggleRow = document.getElementById('heroHeaderToggleRow');
   function applyCustomizeDrawerLockUI() {
     if (editMasterCssBtn) editMasterCssBtn.classList.toggle('hidden', !isUnlocked);
     if (petpetpetToggleRow) petpetpetToggleRow.classList.toggle('hidden', !isUnlocked);
+    if (headerStyleTogglesRow) headerStyleTogglesRow.classList.toggle('hidden', !isUnlocked);
+    if (heroHeaderToggleRow) heroHeaderToggleRow.classList.toggle('hidden', !isUnlocked);
   }
 
   // the button toggles the drawer, and always succeeds even if lookup data
@@ -8269,7 +8807,11 @@ border:0px solid #FFFFFF;}
     if (!customizeDrawer.classList.contains('hidden')) { closeCustomizeDrawer(); return; }
     ensureCurrentLookup();
     renderSwatchList();
+    renderHeroSwatchList();
     renderPetpetpetToggle();
+    renderHeaderStyleToggles();
+    renderHeroHeaderToggle();
+    renderLayoutTabs();
     applyCustomizeDrawerLockUI();
     customizeDrawer.classList.remove('hidden');
     // double rAF so the browser paints the un-hidden (translate-x-full) state
@@ -8295,13 +8837,30 @@ border:0px solid #FFFFFF;}
       const ok = await appConfirm('Reset all colors for this pet back to the defaults?', { title: 'Reset colors', okText: 'Reset' });
       if (!ok) return;
       ensureCurrentLookup();
-      currentLookup.theme = Object.assign({}, DEFAULT_LOOKUP_THEME);
+      // preserve which layout is active — resetting COLORS shouldn't switch layouts
+      currentLookup.theme = Object.assign({}, DEFAULT_LOOKUP_THEME, { layout: currentLookup.theme.layout });
       applyLookupTheme(currentLookup.theme);
       persistLookup();
       renderSwatchList();
+      renderHeaderStyleToggles();
       showSaveToast();
     } catch (e) { console.error('Reset colors error:', e); }
   });
+  if (resetHeroThemeBtn) {
+    resetHeroThemeBtn.addEventListener('click', async () => {
+      try {
+        const ok = await appConfirm('Reset all hero-layout colors for this pet back to the defaults?', { title: 'Reset colors', okText: 'Reset' });
+        if (!ok) return;
+        ensureCurrentLookup();
+        currentLookup.heroTheme = Object.assign({}, DEFAULT_HERO_THEME);
+        applyHeroLookupTheme(currentLookup.heroTheme);
+        persistLookup();
+        renderHeroSwatchList();
+        renderHeroHeaderToggle();
+        showSaveToast();
+      } catch (e) { console.error('Reset hero colors error:', e); }
+    });
+  }
 
 
   // ---- Figma-style color picker (2D SV canvas + hue slider + hex + eyedropper) ----
@@ -9231,6 +9790,10 @@ border:0px solid #FFFFFF;}
           const rec = localRecordsByName[key];
           idbSetLookup(key, {
             theme: remote.theme,
+            heroTheme: remote.heroTheme,
+            // heroImage.url is a Storage URL (or empty) — same treatment as
+            // petpet's imageUrl below, nothing device-local to preserve here.
+            heroImage: remote.heroImage,
             petpet: remote.petpet,
             flavor: remote.flavor,
             description: remote.description,
@@ -9292,6 +9855,23 @@ border:0px solid #FFFFFF;}
                 }
               }
             } catch (e) { console.error('Background retry-upload failed for a petpetpet image — will try again next time:', e); }
+          }
+          // Same retry pass for the hero image (hero layout variant).
+          const heroUrl = rec.heroImage && rec.heroImage.url;
+          if (heroUrl && heroUrl.startsWith('data:')) {
+            try {
+              const file3 = dataUrlToFile(heroUrl, `${genId()}.png`);
+              const publicUrl3 = await sbUploadAsset(file3, `hero-images/${encodeURIComponent(getMediaKey(rec.name))}`);
+              if (publicUrl3) {
+                rec.heroImage.url = publicUrl3;
+                await idbSetLookup(rec.name, rec);
+                syncedLookups[rec.name] = buildSyncedLookupEntry(rec);
+                if (currentDetailPetName === rec.name && currentLookup) {
+                  currentLookup.heroImage.url = publicUrl3;
+                  safeCall(renderHeroImageZone);
+                }
+              }
+            } catch (e) { console.error('Background retry-upload failed for a hero image — will try again next time:', e); }
           }
         }
       }
