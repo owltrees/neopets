@@ -362,6 +362,10 @@
     --lkh-header-bg: #FFC50B;
     --lkh-header-label-color: #222222;
     --lkh-body-text: #000000;
+    --lkh-bold: #454545;
+    --lkh-link: #454545;
+    --lkh-link-hover: #616161;
+    --lkh-title-accent: #8B5CF6;
   }
   .lookup-page { background: var(--lk-bg); transition: background .15s ease; }
   .lookup-border-x {
@@ -421,16 +425,17 @@
   #lookupPage.hero-active { background: var(--lkh-bg) !important; padding-top: 0 !important; transition: background .15s ease; }
   /* Frame itself shrinks by exactly the -150px the media stage lost (500px
      classic -> 350px hero): content is 350 + 8 gap + 300 (same stats-column
-     width as Theme 1) = 658px, plus 8px padding + 3px border on each side
-     = 680px total. Capping max-width here (instead of stretching the grid
+     width as Theme 1) = 658px, plus 8px padding + 2px border on each side
+     = 678px total. Capping max-width here (instead of stretching the grid
      to fill the classic 880px frame) is what keeps the stats column the
      same width it is in Theme 1 with no leftover space anywhere. */
-  #lookupInner.hero-active { max-width: 680px; padding: 8px; border-left: 3px solid var(--lkh-border) !important; border-right: 3px solid var(--lkh-border) !important; background: var(--lkh-content-bg) !important; color: var(--lkh-body-text, #000000) !important; transition: border-color .15s ease, background .15s ease, color .15s ease; }
+  #lookupInner.hero-active { max-width: 678px; padding: 8px; border-left: 2px solid var(--lkh-border) !important; border-right: 2px solid var(--lkh-border) !important; background: var(--lkh-content-bg) !important; color: var(--lkh-body-text, #000000) !important; transition: border-color .15s ease, background .15s ease, color .15s ease; }
   #lookupInner.hero-active h2 { color: var(--lkh-body-text, #000000) !important; }
   #lookupInner.hero-active .lookup-bold,
-  #lookupInner.hero-active .lookup-link,
-  #lookupInner.hero-active .lookup-link-static { color: var(--lkh-body-text, #000000) !important; opacity: .8; }
-  #lookupInner.hero-active .lookup-link:hover { opacity: 1; }
+  #lookupInner.hero-active .lookup-link-static { color: var(--lkh-bold) !important; }
+  #lookupInner.hero-active .lookup-link { color: var(--lkh-link) !important; }
+  #lookupInner.hero-active .lookup-link:hover { color: var(--lkh-link-hover) !important; }
+  #lookupInner.hero-active .lookup-title-accent { color: var(--lkh-title-accent) !important; }
   #lookupInner.hero-active .border-dashed,
   #lookupInner.hero-active .border-t { border-color: var(--lkh-border) !important; }
   .lookup-section-header.hero-active-header { border-top: none !important; border-bottom: none !important; background: var(--lkh-header-bg) !important; color: var(--lkh-header-label-color) !important; }
@@ -449,7 +454,7 @@
     #lookupInner.hero-active #lookupGridRow { grid-template-columns: 350px 300px !important; }
     #lookupInner.hero-active #neopetColumn { width: 350px !important; }
   }
-  #detailTopBar.hero-floating { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 45; width: min(680px, calc(100% - 2rem)); margin-bottom: 0 !important; }
+  #detailTopBar.hero-floating { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 45; width: min(678px, calc(100% - 2rem)); margin-bottom: 0 !important; }
   #heroImageZone { width: calc(100% + 16px); position: relative; overflow: hidden; cursor: pointer; }
   #heroImageZone img { display: block; width: 100%; height: auto; }
   #heroImageZone .hero-empty-state { min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 1.5px dashed var(--lkh-border); color: #7A7A82; text-align: center; }
@@ -1529,8 +1534,10 @@
 
       </div>
 
-      <!-- ===== GLOBAL — shared across both layouts ===== -->
-      <div class="px-5 py-4 border-t border-[#E2E8E4] space-y-1">
+      <!-- ===== Neopets CSS export — classic layout only; the hero layout
+           isn't a real Neopets pet-lookup skin, so exporting CSS for it
+           doesn't apply ===== -->
+      <div id="neopetsCssSection" class="px-5 py-4 border-t border-[#E2E8E4] space-y-1">
         <p class="text-[11px] font-bold tracking-wide text-[#8AA39A] uppercase mb-1">Neopets CSS</p>
         <button id="copyLookupCssBtn" type="button" class="w-full flex items-center gap-3 rounded-xl px-2 py-2.5 -mx-2 hover:bg-sage/60 transition-colors text-left">
           <span aria-hidden="true" class="text-lg shrink-0">📋</span>
@@ -6772,6 +6779,7 @@
   const layoutTabHeroBtn = document.getElementById('layoutTabHeroBtn');
   const classicThemeSection = document.getElementById('classicThemeSection');
   const heroThemeSection = document.getElementById('heroThemeSection');
+  const neopetsCssSection = document.getElementById('neopetsCssSection');
   const heroSwatchList = document.getElementById('heroSwatchList');
   const resetHeroThemeBtn = document.getElementById('resetHeroThemeBtn');
   const heroHeaderModeGroup = document.getElementById('heroHeaderModeGroup');
@@ -6814,13 +6822,21 @@
     borderColor: '#D8D8DC',
     headerBg: '#FFC50B',
     headerLabelDark: true, // Light mode (dark text) — reads well on the yellow default header
-    bodyTextColor: '#000000'
+    bodyTextColor: '#000000',
+    boldText: '#454545',
+    linkColor: '#454545',
+    linkHover: '#616161',
+    titleAccent: '#8B5CF6'
   };
   const HERO_THEME_FIELDS = [
     { key: 'pageBg', label: 'Page background' },
     { key: 'contentBg', label: 'Content background' },
     { key: 'borderColor', label: 'Content border color' },
-    { key: 'headerBg', label: 'Section header background' }
+    { key: 'headerBg', label: 'Section header background' },
+    { key: 'boldText', label: 'Bold text color' },
+    { key: 'linkColor', label: 'Link color' },
+    { key: 'linkHover', label: 'Link hover color' },
+    { key: 'titleAccent', label: 'Title accent color' }
   ];
 
   function releaseDetailObjectUrl() {
@@ -6865,6 +6881,10 @@
     style.setProperty('--lkh-header-bg', theme.headerBg);
     style.setProperty('--lkh-header-label-color', theme.headerLabelDark ? '#222222' : '#ffffff');
     style.setProperty('--lkh-body-text', theme.bodyTextColor || '#000000');
+    style.setProperty('--lkh-bold', theme.boldText);
+    style.setProperty('--lkh-link', theme.linkColor);
+    style.setProperty('--lkh-link-hover', theme.linkHover);
+    style.setProperty('--lkh-title-accent', theme.titleAccent);
   }
 
   // Switches which lookup layout variant is actually showing — toggles the
@@ -8773,6 +8793,10 @@ border:0px solid #FFFFFF;}
     if (layoutTabHeroBtn) layoutTabHeroBtn.classList.toggle('active', isHero);
     if (classicThemeSection) classicThemeSection.classList.toggle('hidden', isHero);
     if (heroThemeSection) heroThemeSection.classList.toggle('hidden', !isHero);
+    // the Neopets CSS export is a classic-layout concept only — the hero
+    // layout isn't a real Neopets pet-lookup skin, so exporting CSS for it
+    // wouldn't do anything on the actual site
+    if (neopetsCssSection) neopetsCssSection.classList.toggle('hidden', isHero);
   }
   async function setLookupLayout(layout) {
     if (!isUnlocked) { await promptEnterPin(); return; }
