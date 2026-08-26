@@ -2911,6 +2911,44 @@
       });
     } catch (e) { return []; }
   }
+  // Reads every legacy single-video blob at once — export/import (Save
+  // backup / Restore backup) only, same one-time-full-scan idea as
+  // idbGetAllLookups above.
+  async function idbGetAllVideos() {
+    try {
+      const db = await openVideoDB();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(VIDEO_STORE, 'readonly');
+        const req = tx.objectStore(VIDEO_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) { return []; }
+  }
+  // Reads every item in the multi-video render stack across ALL pets at
+  // once (idbGetMediaList only reads one pet at a time via the petName
+  // index) — export/import only.
+  async function idbGetAllMediaStackItems() {
+    try {
+      const db = await openVideoDB();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(MEDIA_STACK_STORE, 'readonly');
+        const req = tx.objectStore(MEDIA_STACK_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) { return []; }
+  }
+  // Blobs can't survive JSON.stringify — this is the export-side half of
+  // the round trip, dataUrlToFile (above) is the import-side half.
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
 
   // ---------- shared modal open/close transitions ----------
   // showModalEl/hideModalEl animate the backdrop opacity + card scale/opacity
@@ -9203,14 +9241,28 @@ border:0px solid #FFFFFF;}
     await flushPendingLookupSave();
     // Every pet's lookup customization — theme hexes (both Classic and Hero
     // color sets), the light/dark + black/white text toggles, which layout
-    // is selected, the .webm/media on the stage, the description, the
-    // petpet (including petpetpet) and its image, the "likes"/greeting
-    // strings shown in the right column, and the hero banner image. Pulled
-    // straight from IndexedDB (not the trimmed Supabase mirror) so nothing
-    // that hasn't finished uploading yet — a pasted image still sitting as
-    // a local data: URL, say — gets left out of the backup.
+    // is selected, the description, the petpet (including petpetpet) and
+    // its image, the "likes"/greeting strings shown in the right column,
+    // and the hero banner image. Pulled straight from IndexedDB (not the
+    // trimmed Supabase mirror) so nothing that hasn't finished uploading
+    // yet — a pasted image still sitting as a local data: URL, say — gets
+    // left out of the backup.
     const lookups = await idbGetAllLookups();
-    const backup = { pets, stagedImages, wishlistImages, accounts: ACCOUNTS, statuses: STATUSES, lookups, exportedAt: new Date().toISOString() };
+    // The actual .webm/.mp4/image FILES live in two separate IndexedDB
+    // stores, not in `lookups` above (which only carries a `mediaUrl`
+    // reference) — legacy single-media pets in petVideos, and everyone
+    // else's multi-render stack in petMediaStack. Blobs can't survive
+    // JSON.stringify, so each one gets base64-encoded as a data: URL.
+    const [rawVideos, rawMediaStack] = await Promise.all([idbGetAllVideos(), idbGetAllMediaStackItems()]);
+    const videos = await Promise.all(rawVideos.map(async (v) => ({
+      name: v.name, mime: v.mime, fileName: v.fileName,
+      dataUrl: await blobToDataUrl(v.blob)
+    })));
+    const mediaStack = await Promise.all(rawMediaStack.map(async (m) => ({
+      id: m.id, petName: m.petName, mime: m.mime, fileName: m.fileName, thumbnail: m.thumbnail,
+      dataUrl: await blobToDataUrl(m.blob)
+    })));
+    const backup = { pets, stagedImages, wishlistImages, accounts: ACCOUNTS, statuses: STATUSES, lookups, videos, mediaStack, exportedAt: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -9239,8 +9291,10 @@ border:0px solid #FFFFFF;}
         // hero layout, descriptions, petpet, etc.) — falling back to an
         // empty list rather than rejecting the whole file as invalid
         const lookups = Array.isArray(data.lookups) ? data.lookups : [];
+        const videos = Array.isArray(data.videos) ? data.videos : [];
+        const mediaStack = Array.isArray(data.mediaStack) ? data.mediaStack : [];
         const ok = await appConfirm(
-          `Import ${data.pets.length} pet name(s), ${data.stagedImages.length} staged image(s), and ${lookups.length} pet lookup setting(s)? This will replace your current data.`,
+          `Import ${data.pets.length} pet name(s), ${data.stagedImages.length} staged image(s), ${lookups.length} pet lookup setting(s), and ${videos.length + mediaStack.length} pet media file(s)? This will replace your current data.`,
           { title: 'Restore backup', okText: 'Import' }
         );
         if (!ok) return;
@@ -9252,6 +9306,26 @@ border:0px solid #FFFFFF;}
         wishlistImages = Array.isArray(data.wishlistImages) ? data.wishlistImages : [];
         if (Array.isArray(data.accounts) && data.accounts.length) ACCOUNTS = data.accounts;
         if (Array.isArray(data.statuses) && data.statuses.length) STATUSES = data.statuses;
+        // Restore the actual .webm/.mp4/image FILES first (decoding each
+        // data: URL back into a Blob) so they're already sitting in
+        // IndexedDB by the time the lookups below — and any enterPetDetail
+        // reload — go looking for them. idbPutMediaRecord (not idbAddMedia)
+        // preserves each media-stack item's original id, since a lookup's
+        // activeMediaId points at that exact id.
+        for (const v of videos) {
+          if (!v || !v.dataUrl) continue;
+          try {
+            const file = dataUrlToFile(v.dataUrl, v.fileName || v.name || 'video');
+            await idbSetVideo(v.name, file, v.mime || file.type, v.fileName);
+          } catch (e) { console.error('Restore video error:', e); }
+        }
+        for (const m of mediaStack) {
+          if (!m || !m.dataUrl) continue;
+          try {
+            const file = dataUrlToFile(m.dataUrl, m.fileName || 'media');
+            await idbPutMediaRecord({ id: m.id, petName: m.petName, blob: file, mime: m.mime || file.type, fileName: m.fileName || '', thumbnail: m.thumbnail || '', savedAt: Date.now() });
+          } catch (e) { console.error('Restore media-stack item error:', e); }
+        }
         // Restore every pet's lookup customization — same fields
         // persistLookup() writes on a normal edit, just applied in bulk:
         // write each one to IndexedDB, refresh the in-memory sync mirror,
