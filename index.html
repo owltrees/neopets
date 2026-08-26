@@ -6903,10 +6903,8 @@
     if (heroImageZone) heroImageZone.classList.toggle('hidden', !isHero);
   }
 
-  function persistLookup() {
-    if (!currentDetailPetName || !currentLookup) return;
-    const name = currentDetailPetName;
-    const snapshot = {
+  function buildLookupSnapshot() {
+    return {
       theme: currentLookup.theme,
       heroTheme: currentLookup.heroTheme,
       heroImage: currentLookup.heroImage,
@@ -6916,6 +6914,11 @@
       mediaUrl: currentLookup.mediaUrl,
       activeMediaId: currentLookup.activeMediaId // which render (.webm/.mp4/image) is on the stage — without this, a switch never survives a reload
     };
+  }
+  function persistLookup() {
+    if (!currentDetailPetName || !currentLookup) return;
+    const name = currentDetailPetName;
+    const snapshot = buildLookupSnapshot();
     clearTimeout(lookupSaveTimer);
     lookupSaveTimer = setTimeout(() => { idbSetLookup(name, snapshot); }, 250);
     // Text-only mirror, synced separately from the full local snapshot
@@ -6925,6 +6928,15 @@
     // here is always found by the same read path that already works today.
     syncedLookups[name] = buildSyncedLookupEntry(snapshot);
     sbSyncLookupsDebounced();
+  }
+  // Writes the currently-open pet's lookup to IndexedDB immediately,
+  // bypassing persistLookup's 250ms debounce — used right before "Save
+  // backup" so a change made seconds ago isn't silently missing from the
+  // exported file.
+  async function flushPendingLookupSave() {
+    if (!currentDetailPetName || !currentLookup) return;
+    clearTimeout(lookupSaveTimer);
+    await idbSetLookup(currentDetailPetName, buildLookupSnapshot());
   }
 
   // ---- header: pet name / color / species (color & species are shared across
@@ -9183,9 +9195,22 @@ border:0px solid #FFFFFF;}
   settingsMenu.addEventListener('click', (e) => e.stopPropagation());
 
   // ---------- export / import ----------
-  menuExportBtn.addEventListener('click', () => {
+  menuExportBtn.addEventListener('click', async () => {
     settingsMenu.classList.add('hidden');
-    const backup = { pets, stagedImages, wishlistImages, accounts: ACCOUNTS, statuses: STATUSES, exportedAt: new Date().toISOString() };
+    // flush the currently-open pet's lookup (if any) so a change made just
+    // before hitting "Save backup" isn't missing — persistLookup debounces
+    // its IndexedDB write by 250ms, and this can't afford to race it
+    await flushPendingLookupSave();
+    // Every pet's lookup customization — theme hexes (both Classic and Hero
+    // color sets), the light/dark + black/white text toggles, which layout
+    // is selected, the .webm/media on the stage, the description, the
+    // petpet (including petpetpet) and its image, the "likes"/greeting
+    // strings shown in the right column, and the hero banner image. Pulled
+    // straight from IndexedDB (not the trimmed Supabase mirror) so nothing
+    // that hasn't finished uploading yet — a pasted image still sitting as
+    // a local data: URL, say — gets left out of the backup.
+    const lookups = await idbGetAllLookups();
+    const backup = { pets, stagedImages, wishlistImages, accounts: ACCOUNTS, statuses: STATUSES, lookups, exportedAt: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -9210,8 +9235,12 @@ border:0px solid #FFFFFF;}
       try {
         const data = JSON.parse(ev.target.result);
         if (!Array.isArray(data.pets) || !Array.isArray(data.stagedImages)) throw new Error('Invalid backup format');
+        // older backups predate per-pet lookup customization (theme colors,
+        // hero layout, descriptions, petpet, etc.) — falling back to an
+        // empty list rather than rejecting the whole file as invalid
+        const lookups = Array.isArray(data.lookups) ? data.lookups : [];
         const ok = await appConfirm(
-          `Import ${data.pets.length} pet name(s) and ${data.stagedImages.length} staged image(s)? This will replace your current data.`,
+          `Import ${data.pets.length} pet name(s), ${data.stagedImages.length} staged image(s), and ${lookups.length} pet lookup setting(s)? This will replace your current data.`,
           { title: 'Restore backup', okText: 'Import' }
         );
         if (!ok) return;
@@ -9223,6 +9252,22 @@ border:0px solid #FFFFFF;}
         wishlistImages = Array.isArray(data.wishlistImages) ? data.wishlistImages : [];
         if (Array.isArray(data.accounts) && data.accounts.length) ACCOUNTS = data.accounts;
         if (Array.isArray(data.statuses) && data.statuses.length) STATUSES = data.statuses;
+        // Restore every pet's lookup customization — same fields
+        // persistLookup() writes on a normal edit, just applied in bulk:
+        // write each one to IndexedDB, refresh the in-memory sync mirror,
+        // then push the whole batch to Supabase in one go.
+        for (const rec of lookups) {
+          if (!rec || typeof rec.name !== 'string') continue;
+          await idbSetLookup(rec.name, rec);
+          syncedLookups[rec.name] = buildSyncedLookupEntry(rec);
+        }
+        if (lookups.length) sbSyncLookupsDebounced();
+        // if the pet currently open in the detail view was just restored,
+        // reload it so the page reflects the imported data immediately
+        // instead of showing whatever was on screen before the import
+        if (currentDetailPetName && lookups.some(rec => rec && rec.name === currentDetailPetName)) {
+          enterPetDetail(currentDetailPetName);
+        }
         tagsDirtyThisSession = true;
         savePets(); saveImages(); saveWishlistImages(); saveTags();
         filters = { search: '', accounts: new Set(), statuses: new Set(), imageSrc: null, mp: false, showCompleted: false };
