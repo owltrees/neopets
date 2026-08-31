@@ -97,9 +97,11 @@
 
   /* ---------- gallery: featured thumbnail grid + viewer sidesheet rail + edit-sheet drag rows ---------- */
   .gallery-thumb-wrap { position: relative; aspect-ratio: 1 / 1; border-radius: 10px; overflow: hidden; background: #F1F5F3; cursor: pointer; }
+  .gallery-featured-placeholder { aspect-ratio: 1 / 1; border-radius: 10px; border: 2px dashed color-mix(in srgb, currentColor 25%, transparent); color: currentColor; opacity: 0.4; background: transparent; cursor: pointer; font-size: 22px; font-weight: 300; transition: opacity .15s ease, border-color .15s ease; }
+  .gallery-featured-placeholder:hover { opacity: 0.8; border-color: color-mix(in srgb, currentColor 45%, transparent); }
   .gallery-thumb { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .15s ease; }
   .gallery-thumb-wrap:hover .gallery-thumb { transform: scale(1.05); }
-  .gallery-rail-thumb { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; cursor: pointer; opacity: 0.55; border: 2px solid transparent; transition: opacity .15s ease, border-color .15s ease; display: block; }
+  .gallery-rail-thumb { width: 84px; height: 84px; flex-shrink: 0; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; cursor: pointer; opacity: 0.55; border: 2px solid transparent; transition: opacity .15s ease, border-color .15s ease; display: block; }
   .gallery-rail-thumb:hover { opacity: 0.85; }
   .gallery-rail-thumb.gallery-rail-thumb-active { opacity: 1; border-color: #15B8B0; }
   .gallery-edit-row { transition: opacity .15s ease, transform .15s ease; }
@@ -112,6 +114,15 @@
      handle so dragging it back down still re-expands it. */
   #petPageConsole.petpage-console-collapsed { height: 40px !important; }
   #petPageConsole.petpage-console-collapsed #petPageCodeInput { display: none; }
+  /* Theme-aware muted text/controls for the lookup page — unlike the fixed
+     #8AA39A gray used elsewhere in the app's own (always-white) editor UI,
+     these use `currentColor` off the already-theme-aware --lk-body-text /
+     --lkh-body-text so they stay legible whether the lookup theme is light
+     or dark, instead of a hardcoded sage-gray that only ever looks right
+     on white. */
+  .lookup-muted-text { color: currentColor; opacity: 0.55; }
+  .lookup-pill-btn { color: currentColor; opacity: 0.7; border: 1px solid color-mix(in srgb, currentColor 22%, transparent); background: transparent; transition: opacity .15s ease, background-color .15s ease, border-color .15s ease; }
+  .lookup-pill-btn:hover { opacity: 1; background: color-mix(in srgb, currentColor 10%, transparent); border-color: color-mix(in srgb, currentColor 38%, transparent); }
 
   /* ---------- floating "Search Neopets" pill + anchored panel ----------
      Deliberately NOT a .modal-backdrop instance: there's no full-screen dark
@@ -1562,22 +1573,30 @@
        the viewer on click — only the <img> and the thumbnail rail opt out
        (see the click handler in the script) — so clicking anywhere in the
        letterboxed space around the image also closes it, per spec. -->
-  <div id="galleryViewerStage" class="absolute flex items-center justify-center" style="top:100px; left:100px; right:100px; bottom:100px;">
+  <div id="galleryViewerStage" class="absolute flex items-center justify-center" style="top:100px; left:100px; right:100px; bottom:100px; transition: bottom .2s ease;">
     <img id="galleryViewerMainImg" src="" alt="" class="max-w-full max-h-full object-contain select-none" style="opacity:0; transform:scale(0.96); transition: opacity .2s ease, transform .2s ease;">
   </div>
-  <!-- Positioned independently of the stage above (not relative to its
-       100px margin) so they never end up hidden behind the thumbnail rail
-       on the right — prev/next always sit at a fixed distance from the
-       actual viewport edge instead. -->
+  <!-- Positioned independently of the stage above so they always sit at a
+       fixed distance from the actual viewport edges regardless of the
+       stage's own margin or the drawer's current height. -->
   <button id="galleryViewerPrevBtn" type="button" class="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 text-white/60 hover:text-white p-2 z-10">
     <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>
   </button>
-  <button id="galleryViewerNextBtn" type="button" class="absolute right-[168px] sm:right-[212px] top-1/2 -translate-y-1/2 text-white/60 hover:text-white p-2 z-10">
+  <button id="galleryViewerNextBtn" type="button" class="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 text-white/60 hover:text-white p-2 z-10">
     <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>
   </button>
-  <!-- Thumbnail sidesheet: a right-anchored floating panel, independent of
-       the lightbox stage above — 2 columns, slides in from the right. -->
-  <div id="galleryViewerThumbRail" class="absolute top-0 right-0 h-full w-[152px] sm:w-[196px] overflow-y-auto grid grid-cols-2 gap-2 content-start p-3 bg-black/55 backdrop-blur-md border-l border-white/10 z-10 transform translate-x-full transition-transform duration-300 ease-out"></div>
+  <!-- Thumbnail drawer: docked to the bottom, drag-resizable (handle along
+       its top edge) and scrollable when its content overflows the current
+       height. Clicking a thumbnail switches the main image without closing
+       the lightbox — only the X button or clicking the margin around the
+       main image (handled in the script) closes it; clicks anywhere in
+       this drawer are explicitly exempted from that. -->
+  <div id="galleryViewerThumbDrawer" class="absolute left-0 right-0 bottom-0 flex flex-col bg-black/55 backdrop-blur-md border-t border-white/10 z-10 transform translate-y-full transition-transform duration-300 ease-out" style="height:132px;">
+    <div id="galleryViewerDrawerDragHandle" class="h-2.5 cursor-row-resize hover:bg-white/10 shrink-0 flex items-center justify-center transition-colors" title="Drag to resize">
+      <div class="w-10 h-1 rounded-full bg-white/30"></div>
+    </div>
+    <div id="galleryViewerThumbRail" class="flex-1 min-h-0 overflow-y-auto flex flex-wrap content-start gap-2 px-3 pb-3"></div>
+  </div>
 </div>
 
 <!-- EDIT SHEET: unlocked-only — add/remove, drag to reorder, set featured -->
@@ -1595,7 +1614,7 @@
         <input id="galleryEditUrlInput" type="text" placeholder="Paste an image link" class="flex-1 min-w-0 border border-[#DADADA] rounded-xl px-3 py-2 text-sm">
         <button id="galleryEditAddBtn" type="button" class="bg-teal hover:bg-tealdark text-white font-semibold text-sm px-4 py-2 rounded-xl transition-all shrink-0">Add</button>
       </div>
-      <p class="text-[11px] text-[#8AA39A] mt-1.5">Drag to reorder — the top 3 show as featured on the pet's page.</p>
+      <p class="text-[11px] text-[#8AA39A] mt-1.5">Star up to 3 images to feature them on the pet's page — drag within a group to reorder.</p>
     </div>
     <div id="galleryEditList" class="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-2"></div>
   </div>
@@ -8944,6 +8963,8 @@
   const galleryViewerBackdrop = document.getElementById('galleryViewerBackdrop');
   const galleryViewerStage = document.getElementById('galleryViewerStage');
   const galleryViewerCloseBtn = document.getElementById('galleryViewerCloseBtn');
+  const galleryViewerThumbDrawer = document.getElementById('galleryViewerThumbDrawer');
+  const galleryViewerDrawerDragHandle = document.getElementById('galleryViewerDrawerDragHandle');
   const galleryViewerThumbRail = document.getElementById('galleryViewerThumbRail');
   const galleryViewerMainImg = document.getElementById('galleryViewerMainImg');
   const galleryViewerPrevBtn = document.getElementById('galleryViewerPrevBtn');
@@ -8960,10 +8981,23 @@
   let currentGalleryPetName = null;
   let currentViewerIndex = 0;
   let galleryDragFromIdx = null;
+  let galleryDrawerHeight = 132; // remembered across open/close within a session
 
   function getGalleryFor(name) {
     if (!Array.isArray(petGalleries[name])) petGalleries[name] = [];
     return petGalleries[name];
+  }
+  // Featured is an explicit per-image flag now, not just "whichever 3 are
+  // first" — that's what made starring a 4th image feel unpredictable
+  // (nothing showed you which of the current 3 would get bumped). Items
+  // saved before this existed don't have the flag yet, so those fall back
+  // to their old implicit rule (first 3 by position) until someone
+  // actually toggles a star, at which point it becomes explicit for good.
+  function isItemFeatured(item, idx) {
+    return typeof item.featured === 'boolean' ? item.featured : idx < 3;
+  }
+  function countFeatured(items) {
+    return items.reduce((n, item, idx) => n + (isItemFeatured(item, idx) ? 1 : 0), 0);
   }
 
   // ---- inline "featured" section under Description ----
@@ -8975,30 +9009,57 @@
     gallerySection.classList.toggle('hidden', !showSection);
     if (!showSection) { galleryFeaturedZone.innerHTML = ''; return; }
 
-    const featured = items.slice(0, 3);
+    const featured = items
+      .map((item, idx) => ({ item, idx }))
+      .filter(({ item, idx }) => isItemFeatured(item, idx))
+      .slice(0, 3);
     let html = '';
-    if (featured.length === 0) {
-      html += `<div class="text-center text-sm text-[#8AA39A] py-4">No art added yet.</div>`;
+    if (featured.length === 0 && items.length === 0) {
+      html += `<div class="text-center text-sm lookup-muted-text py-4">No art added yet.</div>`;
     } else {
-      html += `<div class="grid grid-cols-3 gap-3">` + featured.map((item, idx) => `
-        <div class="gallery-thumb-wrap" data-gallery-idx="${idx}">
-          <img src="${escapeHtml(item.url)}" alt="${escapeHtml(currentDetailPetName)} art ${idx + 1}" loading="lazy" class="gallery-thumb">
-        </div>`).join('') + `</div>`;
+      // Always 3 grid cells when unlocked, even if fewer than 3 images are
+      // actually featured — an empty dashed placeholder makes "you have
+      // open featured slots" visible instead of the grid just looking
+      // lopsided, and doubles as a shortcut into the edit sheet.
+      const cellCount = isUnlocked ? 3 : featured.length;
+      let cellsHtml = '';
+      for (let i = 0; i < cellCount; i++) {
+        const slot = featured[i];
+        if (slot) {
+          cellsHtml += `<div class="gallery-thumb-wrap" data-gallery-idx="${slot.idx}">
+            <img src="${escapeHtml(slot.item.url)}" alt="${escapeHtml(currentDetailPetName)} art ${i + 1}" loading="lazy" class="gallery-thumb">
+          </div>`;
+        } else {
+          cellsHtml += `<button type="button" id="galleryFeaturedPlaceholder${i}" class="gallery-featured-placeholder" title="Star an image to feature it here">+</button>`;
+        }
+      }
+      html += `<div class="grid grid-cols-3 gap-3">${cellsHtml}</div>`;
     }
-    if (items.length > 3) {
-      html += `<div class="text-center mt-4"><button type="button" id="galleryViewMoreBtn" class="text-xs font-semibold text-tealdark hover:text-forest underline underline-offset-2">View more (${items.length})</button></div>`;
-    }
-    if (isUnlocked) {
-      // A labeled pill rather than a bare floating icon — reads as an
-      // actual control instead of stray decoration, while still staying
-      // visually quiet (no fill/border until hovered) since it's a
-      // secondary, owner-only action tucked at the bottom of the section.
-      html += `<div class="text-center ${featured.length || items.length > 3 ? 'mt-4' : 'mt-1'}"><button type="button" id="galleryEditIconBtn" title="Manage gallery" class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#8AA39A] hover:text-forest px-3 py-1.5 rounded-full border border-transparent hover:border-[#E2E8E4] hover:bg-slate-50 transition"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit gallery</button></div>`;
+    // View more and Edit gallery read as one small row of secondary actions
+    // now — same size and weight, a thin dot between them when both are
+    // present — rather than two mismatched, differently-styled elements
+    // stacked on separate lines.
+    const showViewMore = items.length > featured.length;
+    if (showViewMore || isUnlocked) {
+      html += `<div class="flex items-center justify-center gap-2.5 ${featured.length ? 'mt-4' : 'mt-1'}">`;
+      if (showViewMore) {
+        html += `<button type="button" id="galleryViewMoreBtn" class="lookup-muted-text hover:opacity-100 hover:underline underline-offset-2 text-xs font-semibold transition-opacity">View more (${items.length})</button>`;
+      }
+      if (showViewMore && isUnlocked) {
+        html += `<span class="lookup-muted-text text-xs" style="opacity:0.3">•</span>`;
+      }
+      if (isUnlocked) {
+        html += `<button type="button" id="galleryEditIconBtn" title="Manage gallery" class="lookup-pill-btn inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit gallery</button>`;
+      }
+      html += `</div>`;
     }
     galleryFeaturedZone.innerHTML = html;
 
     galleryFeaturedZone.querySelectorAll('[data-gallery-idx]').forEach((el) => {
       el.addEventListener('click', () => openGalleryViewer(parseInt(el.dataset.galleryIdx, 10)));
+    });
+    galleryFeaturedZone.querySelectorAll('.gallery-featured-placeholder').forEach((el) => {
+      el.addEventListener('click', openGalleryEditSheet);
     });
     const vm = document.getElementById('galleryViewMoreBtn');
     if (vm) vm.addEventListener('click', () => openGalleryViewer(0));
@@ -9007,7 +9068,7 @@
   }
 
   // ---- viewer: true centered lightbox (100px margin from every viewport
-  // edge) + a right-anchored thumbnail sidesheet, 2 columns ----
+  // edge) + a bottom thumbnail drawer, drag-resizable and scrollable ----
   function renderViewerRail() {
     const items = getGalleryFor(currentGalleryPetName);
     galleryViewerThumbRail.innerHTML = '';
@@ -9016,9 +9077,28 @@
       thumb.src = item.url;
       thumb.alt = `thumbnail ${idx + 1}`;
       thumb.className = 'gallery-rail-thumb' + (idx === currentViewerIndex ? ' gallery-rail-thumb-active' : '');
-      thumb.addEventListener('click', () => showViewerIndex(idx));
+      thumb.addEventListener('click', (e) => {
+        // Without this, the click would bubble up to the sheet-level
+        // close-on-margin-click handler AFTER showViewerIndex() below has
+        // already replaced this exact element (renderViewerRail rebuilds
+        // the whole rail's innerHTML on every switch) — by the time that
+        // handler checks "was the click inside the drawer?", this element
+        // is already detached and .contains() reports false, so it closed
+        // the lightbox instead of just switching images. Stopping
+        // propagation here means that check never has to run at all.
+        e.stopPropagation();
+        showViewerIndex(idx);
+      });
       galleryViewerThumbRail.appendChild(thumb);
     });
+  }
+  // Keeps the main image's 100px margin from colliding with the drawer —
+  // the stage's bottom edge tracks whatever height the drawer currently is
+  // (plus a little breathing room), so resizing the drawer visibly pushes
+  // the image up rather than the drawer just floating over it.
+  function updateGalleryStageBottom() {
+    const drawerH = galleryViewerThumbDrawer.classList.contains('translate-y-full') ? 0 : galleryViewerThumbDrawer.offsetHeight;
+    galleryViewerStage.style.bottom = `${Math.max(100, drawerH + 24)}px`;
   }
   function showViewerIndex(idx) {
     const items = getGalleryFor(currentGalleryPetName);
@@ -9037,31 +9117,36 @@
   function openGalleryViewer(idx) {
     const items = getGalleryFor(currentGalleryPetName);
     if (!items.length) return;
+    galleryViewerThumbDrawer.style.height = `${galleryDrawerHeight}px`;
     galleryViewerSheet.classList.remove('hidden');
     requestAnimationFrame(() => {
       galleryViewerBackdrop.classList.remove('opacity-0');
-      galleryViewerThumbRail.classList.remove('translate-x-full');
+      galleryViewerThumbDrawer.classList.remove('translate-y-full');
+      updateGalleryStageBottom();
     });
     showViewerIndex(idx);
   }
   function closeGalleryViewer() {
     galleryViewerBackdrop.classList.add('opacity-0');
-    galleryViewerThumbRail.classList.add('translate-x-full');
+    galleryViewerThumbDrawer.classList.add('translate-y-full');
     galleryViewerMainImg.style.opacity = '0';
     galleryViewerMainImg.style.transform = 'scale(0.96)';
+    updateGalleryStageBottom();
     setTimeout(() => galleryViewerSheet.classList.add('hidden'), 300);
   }
   galleryViewerCloseBtn.addEventListener('click', closeGalleryViewer);
   galleryViewerPrevBtn.addEventListener('click', () => showViewerIndex(currentViewerIndex - 1));
   galleryViewerNextBtn.addEventListener('click', () => showViewerIndex(currentViewerIndex + 1));
   // True lightbox behavior: clicking anywhere that ISN'T the image itself,
-  // the thumbnail rail, or one of the control buttons closes the viewer —
+  // the thumbnail drawer, or one of the control buttons closes the viewer —
   // this covers the backdrop AND the 100px letterboxed margin around the
   // image (both the empty edges of the stage and any empty space left by
-  // object-contain), matching "clicking in the margins also closes it."
+  // object-contain), matching "clicking in the margins also closes it,"
+  // while clicking a thumbnail in the drawer switches images without
+  // closing anything.
   galleryViewerSheet.addEventListener('click', (e) => {
     if (e.target === galleryViewerMainImg) return;
-    if (galleryViewerThumbRail.contains(e.target)) return;
+    if (galleryViewerThumbDrawer.contains(e.target)) return;
     if (e.target.closest('#galleryViewerPrevBtn, #galleryViewerNextBtn, #galleryViewerCloseBtn')) return;
     closeGalleryViewer();
   });
@@ -9072,7 +9157,98 @@
     else if (e.key === 'ArrowRight') showViewerIndex(currentViewerIndex + 1);
   });
 
+  // ---- drawer resize (drag the handle along its top edge) ----
+  let galleryDrawerDragging = false;
+  galleryViewerDrawerDragHandle.addEventListener('pointerdown', (e) => {
+    galleryDrawerDragging = true;
+    galleryViewerDrawerDragHandle.setPointerCapture(e.pointerId);
+  });
+  galleryViewerDrawerDragHandle.addEventListener('pointermove', (e) => {
+    if (!galleryDrawerDragging) return;
+    const vh = window.innerHeight;
+    const newHeight = Math.min(vh * 0.5, Math.max(90, vh - e.clientY));
+    galleryDrawerHeight = newHeight;
+    galleryViewerThumbDrawer.style.height = `${newHeight}px`;
+    updateGalleryStageBottom();
+  });
+  function endGalleryDrawerDrag() { galleryDrawerDragging = false; }
+  galleryViewerDrawerDragHandle.addEventListener('pointerup', endGalleryDrawerDrag);
+  galleryViewerDrawerDragHandle.addEventListener('pointercancel', endGalleryDrawerDrag);
+
   // ---- edit sheet: add / delete / drag-to-reorder / set featured ----
+  function buildGalleryEditRow(items, idx, featuredCount) {
+    const item = items[idx];
+    const featured = isItemFeatured(item, idx);
+    const row = document.createElement('div');
+    row.className = 'gallery-edit-row flex items-center gap-2 bg-[#FAFCFC] border border-[#E2E8E4] rounded-xl p-2';
+    row.draggable = true;
+    row.dataset.idx = String(idx);
+    // Featured items get a filled, clickable star that UNfeatures them (and
+    // the row visibly moves down into the "All art" group below). A
+    // non-featured star FEATURES it (and moves the row up into "Featured").
+    // Once 3 are already featured, the star for everything else is simply
+    // not rendered at all — not shown-but-disabled — since a star that
+    // can't be clicked isn't meaningfully different from no star, and this
+    // reads cleaner.
+    const showStar = featured || featuredCount < 3;
+    const starBtn = !showStar ? `<span class="w-[22px] shrink-0"></span>` : featured
+      ? `<button type="button" class="gallery-feature-btn text-sm px-1.5" style="color:#D9A441" title="Unfeature this image">★</button>`
+      : `<button type="button" class="gallery-feature-btn text-sm text-[#B9C6C2] hover:text-tealdark px-1.5" title="Feature this image">☆</button>`;
+    row.innerHTML = `
+      <span class="gallery-drag-handle text-[#B9C6C2] px-1 text-base leading-none" title="Drag to reorder">⠿</span>
+      <img src="${escapeHtml(item.url)}" class="w-11 h-11 object-cover rounded-lg shrink-0" alt="">
+      <span class="flex-1 min-w-0"></span>
+      ${starBtn}
+      <button type="button" class="gallery-delete-btn text-[#C97A7A] hover:text-red-600 px-1.5 text-sm" title="Delete">✕</button>
+    `;
+    const featureBtn = row.querySelector('.gallery-feature-btn');
+    if (featureBtn) {
+      featureBtn.addEventListener('click', () => {
+        item.featured = !featured; // explicit flag from here on, regardless of the legacy position fallback
+        saveGalleries();
+        renderGalleryEditList();
+        renderGalleryFeaturedZone();
+      });
+    }
+    row.querySelector('.gallery-delete-btn').addEventListener('click', () => {
+      items.splice(idx, 1);
+      saveGalleries();
+      renderGalleryEditList();
+      renderGalleryFeaturedZone();
+    });
+    // native HTML5 drag-and-drop reorder — works across the Featured/All
+    // art groups too (not just within one), since both groups' rows live
+    // in the same underlying array and this only ever operates on that
+    // array's real indices, never the on-screen grouping.
+    row.addEventListener('dragstart', (e) => {
+      galleryDragFromIdx = idx;
+      row.classList.add('gallery-edit-row-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('gallery-edit-row-dragging');
+      galleryEditList.querySelectorAll('.gallery-edit-row-dragover').forEach((el) => el.classList.remove('gallery-edit-row-dragover'));
+    });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      row.classList.add('gallery-edit-row-dragover');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('gallery-edit-row-dragover'));
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      row.classList.remove('gallery-edit-row-dragover');
+      if (galleryDragFromIdx === null || galleryDragFromIdx === idx) return;
+      const [moved] = items.splice(galleryDragFromIdx, 1);
+      items.splice(idx, 0, moved);
+      galleryDragFromIdx = null;
+      saveGalleries();
+      renderGalleryEditList();
+      renderGalleryFeaturedZone();
+    });
+    return row;
+  }
+
   function renderGalleryEditList() {
     const items = getGalleryFor(currentGalleryPetName);
     galleryEditList.innerHTML = '';
@@ -9080,61 +9256,34 @@
       galleryEditList.innerHTML = `<div class="text-center text-sm text-[#8AA39A] py-6">No art yet — paste a link above to add your first image.</div>`;
       return;
     }
-    items.forEach((item, idx) => {
-      const row = document.createElement('div');
-      row.className = 'gallery-edit-row flex items-center gap-2 bg-[#FAFCFC] border border-[#E2E8E4] rounded-xl p-2';
-      row.draggable = true;
-      row.dataset.idx = String(idx);
-      row.innerHTML = `
-        <span class="gallery-drag-handle text-[#B9C6C2] px-1 text-base leading-none" title="Drag to reorder">⠿</span>
-        <img src="${escapeHtml(item.url)}" class="w-11 h-11 object-cover rounded-lg shrink-0" alt="">
-        <span class="flex-1 min-w-0 text-[11px] font-semibold ${idx < 3 ? 'text-tealdark' : 'text-[#B9C6C2]'}">${idx < 3 ? 'Featured' : ''}</span>
-        ${idx >= 3 ? `<button type="button" class="gallery-feature-btn text-sm text-[#B9C6C2] hover:text-tealdark px-1.5" title="Set as featured">★</button>` : ''}
-        <button type="button" class="gallery-delete-btn text-[#C97A7A] hover:text-red-600 px-1.5 text-sm" title="Delete">✕</button>
-      `;
-      const featureBtn = row.querySelector('.gallery-feature-btn');
-      if (featureBtn) featureBtn.addEventListener('click', () => {
-        const [moved] = items.splice(idx, 1);
-        items.unshift(moved);
-        saveGalleries();
-        renderGalleryEditList();
-        renderGalleryFeaturedZone();
-      });
-      row.querySelector('.gallery-delete-btn').addEventListener('click', () => {
-        items.splice(idx, 1);
-        saveGalleries();
-        renderGalleryEditList();
-        renderGalleryFeaturedZone();
-      });
-      // native HTML5 drag-and-drop reorder
-      row.addEventListener('dragstart', (e) => {
-        galleryDragFromIdx = idx;
-        row.classList.add('gallery-edit-row-dragging');
-        e.dataTransfer.effectAllowed = 'move';
-      });
-      row.addEventListener('dragend', () => {
-        row.classList.remove('gallery-edit-row-dragging');
-        galleryEditList.querySelectorAll('.gallery-edit-row-dragover').forEach((el) => el.classList.remove('gallery-edit-row-dragover'));
-      });
-      row.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        row.classList.add('gallery-edit-row-dragover');
-      });
-      row.addEventListener('dragleave', () => row.classList.remove('gallery-edit-row-dragover'));
-      row.addEventListener('drop', (e) => {
-        e.preventDefault();
-        row.classList.remove('gallery-edit-row-dragover');
-        if (galleryDragFromIdx === null || galleryDragFromIdx === idx) return;
-        const [moved] = items.splice(galleryDragFromIdx, 1);
-        items.splice(idx, 0, moved);
-        galleryDragFromIdx = null;
-        saveGalleries();
-        renderGalleryEditList();
-        renderGalleryFeaturedZone();
-      });
-      galleryEditList.appendChild(row);
-    });
+    const featuredCount = countFeatured(items);
+    const featuredIdxs = [];
+    const restIdxs = [];
+    items.forEach((item, idx) => (isItemFeatured(item, idx) ? featuredIdxs : restIdxs).push(idx));
+
+    // Featured gets its own section that images visibly move into/out of
+    // as they're starred/unstarred, rather than one flat list where
+    // "featured" was just an inline label easy to lose track of.
+    const featHeader = document.createElement('div');
+    featHeader.className = 'text-[10px] font-bold uppercase tracking-wide text-tealdark px-1 pt-1 pb-1';
+    featHeader.textContent = `Featured (${featuredIdxs.length}/3)`;
+    galleryEditList.appendChild(featHeader);
+    if (featuredIdxs.length) {
+      featuredIdxs.forEach((idx) => galleryEditList.appendChild(buildGalleryEditRow(items, idx, featuredCount)));
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'text-center text-[11px] text-[#B9C6C2] py-3 border border-dashed border-[#E2E8E4] rounded-xl';
+      empty.textContent = 'Star an image below to feature it here.';
+      galleryEditList.appendChild(empty);
+    }
+
+    if (restIdxs.length) {
+      const restHeader = document.createElement('div');
+      restHeader.className = 'text-[10px] font-bold uppercase tracking-wide text-[#B9C6C2] px-1 pt-3 pb-1';
+      restHeader.textContent = 'All art';
+      galleryEditList.appendChild(restHeader);
+      restIdxs.forEach((idx) => galleryEditList.appendChild(buildGalleryEditRow(items, idx, featuredCount)));
+    }
   }
   function openGalleryEditSheet() {
     if (!isUnlocked || !currentGalleryPetName) return;
